@@ -53,7 +53,7 @@ def hopfield(H, q, lb, ub, binary_indicator, L, k_max=0, beta=None, step_type='c
         x0 = 0
 
     x[:, 0] = x0
-    x_h[:, 0] = compute_inverse_activation(x0, lb, ub)
+    x_h[:, 0] = inverse_activation(x0, lb, ub, beta=beta, activation_type=activation_type)
     f_val_hist[0] = 0.5 * np.dot(np.dot(x[:, 0].T, q), x[:, 0]) + np.dot(q.T, x[:, 0])
 
     for k in range(k_max):
@@ -98,10 +98,6 @@ def hopfield(H, q, lb, ub, binary_indicator, L, k_max=0, beta=None, step_type='c
 
 
 def create_initial_ascent(H, q, lb, ub, binary_indicator, L):
-    pass
-
-
-def compute_inverse_activation(x0, lb, ub):
     pass
 
 
@@ -231,7 +227,7 @@ def hopfield_update(x_h, lb, ub, alpha, direction, beta=None, activation_type=DE
 
 
 # TODO(Mathilde): decide of which default activation
-def activation(x, lb, ub, beta=None, activation_type='pwl'):
+def activation(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
     """
 
     :param x:
@@ -254,6 +250,31 @@ def activation(x, lb, ub, beta=None, activation_type='pwl'):
         return utils.activation_pwl(z, beta)
     if activation_type == 'tanh':
         return utils.activation_tanh(z, beta)
+
+
+def inverse_activation(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
+    """
+
+    :param x:
+    :param lb:
+    :param ub:
+    :param beta:
+    :param activation_type:
+    :return:
+    """
+    if beta is None:
+        beta = np.ones(len(x))
+    z = np.divide((x - lb), (ub - lb))
+    if activation_type == 'pwl':
+        return utils.inverse_activation_pwl(z, beta)
+    if activation_type == 'exp':
+        return utils.inverse_activation_exp(z, beta)
+    if activation_type == 'sin':
+        return utils.inverse_activation_sin(z, beta)
+    if activation_type == 'identity':
+        return utils.inverse_activation_pwl(z, beta)
+    if activation_type == 'tanh':
+        return utils.inverse_activation_tanh(z, beta)
 
 
 def compute_binary_absorption_mask(x, lb, ub, binary_indicator):
