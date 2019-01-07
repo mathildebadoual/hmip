@@ -5,7 +5,9 @@ import math
 DEFAULT_ACTIVATION_TYPE = 'pwl'
 
 
-def hopfield(H, q, lb, ub, binary_indicator, L, k_max=0, beta=None, step_type='classic', initial_ascent=False, absorption=False,
+# TODO(Mathilde): find another name fot L -> should be lower case
+def hopfield(H, q, lb, ub, binary_indicator, L, k_max=0, beta=None, step_type='classic', initial_ascent=False,
+             absorption=False,
              absorption_val=1, direction_type='classic', activation_type=DEFAULT_ACTIVATION_TYPE):
     """Solves the following optimization problem by computing the Hopfield method
         min f(x) = 1/2 x^T * H * x + q^T * x
@@ -63,7 +65,7 @@ def hopfield(H, q, lb, ub, binary_indicator, L, k_max=0, beta=None, step_type='c
         # update hidden values
         # TODO(Mathilde): remove the for loop (more efficient matrix product)
         if step_type == 'classic':
-            alpha =  (x[:, k], grad_f, direction, k, lb, ub, L)
+            alpha = (x[:, k], grad_f, direction, k, lb, ub, L)
             x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta=beta,
                                                          activation_type=activation_type)
             step_size[k] = alpha
@@ -97,7 +99,6 @@ def hopfield(H, q, lb, ub, binary_indicator, L, k_max=0, beta=None, step_type='c
 
 def create_initial_ascent(H, q, lb, ub, binary_indicator, L):
     pass
-    return x0
 
 
 def compute_inverse_activation(x0, lb, ub):
@@ -106,6 +107,21 @@ def compute_inverse_activation(x0, lb, ub):
 
 def find_direction(x, grad_f, lb, ub, binary_indicator, direction_type='classic', absorption=False, gamma=0, theta=0,
                    beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
+    """
+
+    :param x:
+    :param grad_f:
+    :param lb:
+    :param ub:
+    :param binary_indicator:
+    :param direction_type:
+    :param absorption:
+    :param gamma:
+    :param theta:
+    :param beta:
+    :param activation_type:
+    :return:
+    """
     n = np.size(x)
     binary_absorption_mask = compute_binary_absorption_mask(x, lb, ub, binary_indicator)
 
@@ -158,6 +174,15 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, direction_type='classic'
 
 
 def proxy_distance_vector(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
+    """
+
+    :param x:
+    :param lb:
+    :param ub:
+    :param beta:
+    :param activation_type:
+    :return:
+    """
     if beta is None:
         beta = np.ones(len(x))
     z = np.divide((x - lb), (ub - lb))
@@ -173,24 +198,17 @@ def proxy_distance_vector(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATI
         return utils.proxy_distance_vector_tanh(z, beta)
 
 
-def compute_alpha_hop():
-    """
+# TODO(Mathilde): remove the integers without justification
+def compute_alpha_hop(x, lb, ub, grad_f, direction, k, L, beta, direction_type):
+    sigma = proxy_distance_vector(x, lb, ub)
+    scale = L * np.norm(np.multiply(beta, direction)) ** 2 + 12 * np.power(np.multiply(beta, direction),
+                                                                           2).T * np.absolute(grad_f)
+    alpha = - np.multiply(sigma, grad_f).T * direction / scale
 
-    :return:
-    """
-    function[alpha] = alpha_hop(x, gradf, direction, iter, lb, ub, L, options)
-    k = iter;
-    beta = options.beta;
-    sigma = proxy_distance_vector(x, lb, ub, options);
-    scale = L * norm(beta. * direction) ^ 2 + 12 * (beta. ^ 2. * direction. ^ 2)
-    '*abs(gradf);
-    alpha = -(sigma. * gradf)
-    '*direction /scale;
+    if direction_type == 'stochastic':
+        alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (L * np.sqrt(k))
 
-    if strcmp(options.direction_type, 'stochastic')
-        alpha = (1 - 1 / sqrt(k)) * alpha + 1 / (L * sqrt(k));
-    end
-
+    return alpha
 
 
 def hopfield_update(x_h, lb, ub, alpha, direction, beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
@@ -205,7 +223,6 @@ def hopfield_update(x_h, lb, ub, alpha, direction, beta=None, activation_type=DE
     :param activation_type:
     :return:
     """
-    n = len(x_h)
     # update of the hidden states
     x_h = x_h + alpha * direction
     # update of the state
@@ -215,6 +232,15 @@ def hopfield_update(x_h, lb, ub, alpha, direction, beta=None, activation_type=DE
 
 # TODO(Mathilde): decide of which default activation
 def activation(x, lb, ub, beta=None, activation_type='pwl'):
+    """
+
+    :param x:
+    :param lb:
+    :param ub:
+    :param beta:
+    :param activation_type:
+    :return:
+    """
     if beta is None:
         beta = np.ones(len(x))
     z = np.divide((x - lb), (ub - lb))
@@ -231,6 +257,14 @@ def activation(x, lb, ub, beta=None, activation_type='pwl'):
 
 
 def compute_binary_absorption_mask(x, lb, ub, binary_indicator):
+    """
+
+    :param x:
+    :param lb:
+    :param ub:
+    :param binary_indicator:
+    :return:
+    """
     n = np.size(x)
     binary_absorption_mask = np.ones(n, 1)
     for i in range(n):
