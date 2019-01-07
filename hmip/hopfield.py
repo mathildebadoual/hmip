@@ -75,7 +75,7 @@ def hopfield(H, q, lb, ub, binary_indicator, L, k_max=0, beta=None, step_type='c
             prox_dist = proxy_distance_vector(x[:, k], lb, ub, beta=beta, activation_type=activation_type)
             while f_val_hist[k + 1] > f_val_hist[k] + alpha * np.dot(np.multiply(prox_dist, grad_f).T, direction):
                 x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta, activation_type)
-                f_val_hist[k + 1] = 0.5 * np.dot(np.dot(x[:, k + 1].T, H), x[:, k + 1]) + np.dot(h.T, x[:, k + 1])
+                f_val_hist[k + 1] = 0.5 * np.dot(np.dot(x[:, k + 1].T, H), x[:, k + 1]) + np.dot(q.T, x[:, k + 1])
                 alpha = alpha / 2
         else:
             print('step_size of the wrong type')
