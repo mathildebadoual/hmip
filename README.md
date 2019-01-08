@@ -23,4 +23,5 @@ For examples of how to use the module, run the jupyter notebook /visualizations/
 # Contacts:
 
 Bertand Travacca 
+
 Mathilde Badoual: mathilde.badoual@berkeley.edu
