@@ -11,7 +11,7 @@ setuptools.setup(
     description="Solver for large scale nonlinear mixed integer problems.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/mathildebadoual/Hopfield-NLMIP",
+    url="https://github.com/mathildebadoual/hmip",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
