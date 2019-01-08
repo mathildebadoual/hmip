@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="hmip",
-    version="0.0.3",
+    version="0.0.4",
     author="Mathilde Badoual",
     author_email="mathilde.badoual@berkeley.edu",
     description="Solver for large scale nonlinear mixed integer problems.",
