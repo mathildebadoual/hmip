@@ -5,7 +5,17 @@ import hmip.hopfield as hop
 
 class TestHopfield(unittest.TestCase):
     def setUp(self):
-        pass
+        self.H = np.array([[2, 0], [0, 1]])
+        self.q = np.array([-2.7, -1.8])
+        self.k_max = 20
+        self.binary_indicator = np.array([0, 1])
+        self.beta = 4
+        self.ub = np.array([1, 1])
+        self.lb = np.array([0, 0])
+        self.L = 1
+
+    def test_hopfield_default(self):
+        hop.hopfield(self.H, self.q, self.lb, self.ub, self.binary_indicator, self.L, k_max=self.k_max)
 
     def test_hopfield_step_type_classic(self):
         pass
