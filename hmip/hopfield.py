@@ -46,7 +46,7 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
 
     n = np.size(q)
 
-    # initialization of the hopfield hidden vectors
+    # initialization of the hopfield vectors
     x = np.ones((n, k_max))
     x_h = np.ones((n, k_max))
     f_val_hist = np.ones(k_max)
@@ -69,15 +69,7 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
 
         # update hidden values
         # TODO(Mathilde): remove the for loop (more efficient matrix product)
-        if step_type == 'classic':
-            # alpha = alpha_hop(x[:, k], grad_f, direction, k, lb, ub, L)
-            alpha = 0.1
-            x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta=beta,
-                                                         activation_type=activation_type)
-            step_size[k] = alpha
-            f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
-
-        elif step_type == 'armijo':
+        if step_type == 'armijo':
             alpha = np.linalg.norm(grad_f) / L
             f_val_hist[k + 1] = f_val_hist[k] + 1
             prox_dist = proxy_distance_vector(x[:, k], lb, ub, beta=beta, activation_type=activation_type)
@@ -85,13 +77,17 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
                 x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta, activation_type)
                 f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
                 alpha = alpha / 2
+            # why this?
+            step_size[k] = 2 * alpha
+
         else:
-            print('step_size of the wrong type')
-            # raise error about the step_type
+            # alpha = alpha_hop(x[:, k], grad_f, direction, k, lb, ub, L)
+            alpha = 0.1
+            x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta=beta,
+                                                         activation_type=activation_type)
+            step_size[k] = alpha
+            f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
 
-        step_size[k] = 2 * alpha
-
-        # absorption
         if absorption:
             for i in range(n):
                 if min(x[i, k + 1] - lb[i], ub[i] - x[i, k + 1]) < absorption_val:
