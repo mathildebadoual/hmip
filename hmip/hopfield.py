@@ -29,7 +29,7 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
     :param L:
     :param k_max: (default = 0) integer
     :param beta: (default = None) array of size x, if it is None, it will be ones(size(x))
-    :param initial_ascent: (default = False) boolean
+    :param initial_ascen (default = False) boolean
     :param absorption: (default = False) boolean
     :param absorption_val: (default = 1) float
     :param step_type: (string)
