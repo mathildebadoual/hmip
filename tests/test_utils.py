@@ -81,3 +81,24 @@ class TestActivationFunction(unittest.TestCase):
         beta = np.ones(self.dim)
         output = utils.activation_identity(x, beta)
         self.assertTrue(np.array_equal(output, x))
+
+
+class TestCheckType(unittest.TestCase):
+    def setUp(self):
+        self.n = 10
+
+    def test_check_initial_state(self):
+        output = utils.check_type(self.n, initial_state=None)
+        self.assertEqual(output, None)
+
+        initial_state = np.ones(self.n)
+        output = utils.check_type(self.n, initial_state=initial_state)
+        self.assertEqual(output, True)
+
+        initial_state = np.ones(self.n - 2)
+        output = utils.check_type(self.n, initial_state=initial_state)
+        self.assertEqual(output, False)
+
+        initial_state = 1
+        output = utils.check_type(self.n, initial_state=initial_state)
+        self.assertEqual(output, False)

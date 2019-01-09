@@ -208,3 +208,12 @@ def inverse_activation_identity(x, beta=None):
     :return:
     """
     return x
+
+
+def check_type(n, initial_state=None):
+    if initial_state is not None:
+        if isinstance(initial_state, np.ndarray):
+            return len(initial_state) == n
+        else:
+            return False
+    return None
