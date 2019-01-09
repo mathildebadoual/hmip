@@ -58,6 +58,7 @@ def proxy_distance_vector_identity(x, beta=None):
     id = np.zeros(len(x))
     return id
 
+
 # TODO(Mathilde): find a librairy with the activation functions -> keras?
 
 
@@ -68,7 +69,7 @@ def activation_tanh(x, beta):
     :param beta: (np.array) size of x, parameter of the function
     :return:
     """
-    tanh = 1 / 2 * (np.tanh(2 * np.multiply(beta, (x - 1 /2))) + 1)
+    tanh = 1 / 2 * (np.tanh(2 * np.multiply(beta, (x - 1 / 2))) + 1)
     return tanh
 
 
@@ -79,7 +80,8 @@ def activation_pwl(x, beta):
     :param beta: (np.array) size of x, parameter of the function
     :return:
     """
-    pwl = np.maximum(np.zeros(len(x)), np.minimum(np.ones(len(x)), np.multiply(beta, (x - 1 / 2)) + 1 / 2 * np.ones(len(x))))
+    pwl = np.maximum(np.zeros(len(x)),
+                     np.minimum(np.ones(len(x)), np.multiply(beta, (x - 1 / 2)) + 1 / 2 * np.ones(len(x))))
     return pwl
 
 
@@ -210,10 +212,84 @@ def inverse_activation_identity(x, beta=None):
     return x
 
 
-def check_type(n, initial_state=None):
+def check_type(n, H=None, q=None, lb=None, ub=None, binary_indicator=None, L=None, k_max=None,
+               absorption_val=None, initial_state=None,
+               beta=None, absorption=None,
+               step_type=None, direction_type=None,
+               activation_type=None, initial_ascent_type=None):
+
+    # TODO(Mathilde): Print messages if not condition?
+
     if initial_state is not None:
         if isinstance(initial_state, np.ndarray):
             return len(initial_state) == n
         else:
             return False
+
+    if H is not None:
+        if isinstance(H, np.ndarray):
+            return H.shape == (n, n)
+        else:
+            return False
+
+    if q is not None:
+        if isinstance(q, np.ndarray):
+            return len(q) == n
+        else:
+            return False
+
+    if lb is not None:
+        if isinstance(lb, np.ndarray):
+            return len(lb) == n
+        else:
+            return False
+
+    if ub is not None:
+        if isinstance(ub, np.ndarray):
+            return len(ub) == n
+        else:
+            return False
+
+    if binary_indicator is not None:
+        if isinstance(binary_indicator, np.ndarray):
+            return len(binary_indicator) == n
+        else:
+            return False
+
+    # TODO(Mathilde): check this one with Bertrand
+    if L is not None:
+        if isinstance(L, float):
+            return True
+        else:
+            return False
+
+    if absorption_val is not None:
+        return isinstance(absorption_val, float)
+
+    if beta is not None:
+        if isinstance(beta, np.ndarray):
+            return len(beta) == n
+        else:
+            return False
+
+    if k_max is not None:
+        return isinstance(k_max,float)
+
+    if absorption is not None:
+        return isinstance(ub, bool)
+
+    # TODO(Mathilde): Maybe check if they are in possible options?
+    if step_type is not None:
+        return isinstance(step_type, str)
+
+    if direction_type is not None:
+        return isinstance(direction_type, str)
+
+    if activation_type is not None:
+        return isinstance(activation_type, str)
+
+    if initial_ascent_type is not None:
+        return isinstance(initial_ascent_type, str)
+
+    print('Add a variable to check')
     return None
