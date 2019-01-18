@@ -1,6 +1,6 @@
 # Hopfield-NLMIP
 
-[![Build Status](https://travis-ci.com/mathildebadoual/hmip.svg?token=sSNFwE8cjSB4sGxziMoY&branch=master)](https://travis-ci.com/mathildebadoual/hmip)  
+[![Build Status](https://travis-ci.com/mathildebadoual/hmip.svg?token=sSNFwE8cjSB4sGxziMoY&branch=master)](https://travis-ci.com/mathildebadoual/hmip)
 Solver for large scale nonlinear mixed integer problems.
 
 Developed at [eCAL](https://ecal.berkeley.edu/), UC Berkeley.
@@ -11,9 +11,9 @@ Developed at [eCAL](https://ecal.berkeley.edu/), UC Berkeley.
 pip install hmip
 ```
 
-# Running 
+# Running
 
-```python 
+```python
 import hmip
 ```
 
@@ -21,6 +21,6 @@ For examples of how to use the module, run the jupyter notebook /visualizations/
 
 # Contacts:
 
-Bertand Travacca 
+Bertand Travacca: bertrand.travacca@berkeley.edu
 
 Mathilde Badoual: mathilde.badoual@berkeley.edu
