@@ -10,10 +10,10 @@ DEFAULT_DIRECTION_TYPE = 'classic'
 
 # TODO(Mathilde): find another name fot L and H -> should be lower case
 def hopfield(H, q, lb, ub, binary_indicator, L,
-             k_max=0, absorption_val=1, beta=None,
-             initial_ascent=False, absorption=False,
+             k_max=0, absorption_val=0.1, gamma=0, theta=0,
+             initial_state=None, beta=None, absorption=False,
              step_type=DEFAULT_STEP_TYPE, direction_type=DEFAULT_DIRECTION_TYPE,
-             activation_type=DEFAULT_ACTIVATION_TYPE):
+             activation_type=DEFAULT_ACTIVATION_TYPE, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE):
     """
 
     Solves the following optimization problem by computing the Hopfield method
@@ -28,13 +28,16 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
     :param binary_indicator: (size(x), 1) vector of value 1 if the corresponding x is in {0, 1} and 0 otherwise.
     :param L:
     :param k_max: (default = 0) integer
-    :param beta: (default = None) array of size x, if it is None, it will be ones(size(x))
-    :param initial_ascen (default = False) boolean
     :param absorption: (default = False) boolean
     :param absorption_val: (default = 1) float
+    :param gamma:
+    :param theta:
+    :param initial_state:
+    :param beta: (default = None) array of size x, if it is None, it will be ones(size(x))
     :param step_type: (string)
     :param direction_type: (string)
     :param activation_type: (string)
+    :param initial_ascent_type (string)
 
     :return: x, x_h, f_val_hist, step_size
 
@@ -52,10 +55,8 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
     f_val_hist = np.ones(k_max)
     step_size = np.ones(k_max)
 
-    if initial_ascent:
-        x0 = initial_ascent(H, q, lb, ub, binary_indicator, L)
-    else:
-        x0 = np.zeros(n)
+
+    x0 = initial_ascent(H, q, lb, ub, binary_indicator, L, initial_state, initial_ascent_type=initial_ascent_type)
 
     x[:, 0] = x0
     x_h[:, 0] = inverse_activation(x0, lb, ub, beta=beta, activation_type=activation_type)
@@ -65,7 +66,8 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
         # gradient
         grad_f = np.dot(H, x[:, k]) + q
         # direction
-        direction = find_direction(x[:, k], grad_f, lb, ub, binary_indicator, direction_type, absorption)
+        direction = find_direction(x[:, k], grad_f, lb, ub, binary_indicator, direction_type, absorption, gamma=gamma,
+                                   theta=theta, beta=beta, activation_type=DEFAULT_ACTIVATION_TYPE)
 
         # update hidden values
         # TODO(Mathilde): remove the for loop (more efficient matrix product)
@@ -89,12 +91,7 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
             f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
 
         if absorption:
-            for i in range(n):
-                if min(x[i, k + 1] - lb[i], ub[i] - x[i, k + 1]) < absorption_val:
-                    if x[i, k + 1] + 1 / 2 * (lb[i] - ub[i]) < 0:
-                        x[i, k + 1] = lb[i]
-                    else:
-                        x[i, k + 1] = ub[i]
+            x[:, k + 1] = absorb_solution_to_limits(x[:, k + 1], ub, lb, absorption_val)
 
     return x, x_h, f_val_hist, step_size
 
@@ -113,33 +110,48 @@ def objective_function(x, H, q):
     return 1 / 2 * np.dot(np.dot(x.T, H), x) + np.dot(q.T, x)
 
 
-# def initial_ascent(H, q, lb, ub, binary_indicator, L, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE):
-#     n = len(q)
-#     ascent = True
-#
-#     if len(binary_indicator) < n:
-#         while ascent:
-#             grad_f = H * x0 + f;
-#             if strcmp(options.initial_ascent, 'ascent') and ascent:
-#                 if norm(gradf) == 0
-#                     gradf = L * rand(n, 1) / 10;
-#                 end
-#                 x0 = segment_projection(x0 + gradf / L, lb + options.ascent_boundary, ub - options.ascent_boundary);
-#                 if min(x0 - lb) == options.ascent_boundary | | min(ub - x0) == options.ascent_boundary
-#                     ascent = 'no';
-#                 end
-#
-#             elseif
-#             strcmp(options.initial_ascent, 'binary_neutral_ascent') & & strcmp(ascent, 'yes')
-#             if norm((1 - binary_indicator). * gradf) == 0
-#                 gradf = L * rand(n, 1) / 10;
-#             end
-#             x0 = segment_projection(x0 + (1 - binary_indicator). * gradf / L, lb + options.ascent_boundary,
-#                                     ub - options.ascent_boundary);
-#             if min(x0 - lb) == options.ascent_boundary | | min(ub - x0) == options.ascent_boundary
-#                 ascent = 'no';
-#
-#     return x0
+def absorb_solution_to_limits(x, ub, lb, absorption_val):
+    for i in range(len(x)):
+        if min(x[i] - lb[i], ub[i] - x[i]) < absorption_val:
+            if x[i] + 1 / 2 * (lb[i] - ub[i]) < 0:
+                x[i] = lb[i]
+            else:
+                x[i] = ub[i]
+    return x
+
+
+def initial_ascent(H, q, lb, ub, binary_indicator, L, initial_state, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE):
+    n = len(q)
+    ascent = True
+
+    if initial_ascent_type == 'classic' or initial_state is None or not utils.check_type(n, initial_state=initial_state):
+        return np.zeros(n)
+    # else:
+    #
+    #     x0 = initial_state
+    #     while ascent:
+    #         grad_f = H * x0 + f;
+    #         if strcmp(options.initial_ascent, 'ascent') and ascent:
+    #             if norm(gradf) == 0
+    #                 gradf = L * rand(n, 1) / 10;
+    #             end
+    #             x0 = segment_projection(x0 + gradf / L, lb + options.ascent_boundary, ub - options.ascent_boundary);
+    #             if min(x0 - lb) == options.ascent_boundary | | min(ub - x0) == options.ascent_boundary
+    #                 ascent = 'no';
+    #             end
+    #
+    #         elseif
+    #         strcmp(options.initial_ascent, 'binary_neutral_ascent') & & strcmp(ascent, 'yes')
+    #         if norm((1 - binary_indicator). * gradf) == 0
+    #             gradf = L * rand(n, 1) / 10;
+    #         end
+    #         x0 = segment_projection(x0 + (1 - binary_indicator). * gradf / L, lb + options.ascent_boundary,
+    #                                 ub - options.ascent_boundary);
+    #         if min(x0 - lb) == options.ascent_boundary | | min(ub - x0) == options.ascent_boundary
+    #             ascent = 'no';
+    else:
+        x0 = initial_state
+    return x0
 
 
 def find_direction(x, grad_f, lb, ub, binary_indicator, direction_type='classic', absorption=False, gamma=0, theta=0,
@@ -177,10 +189,10 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, direction_type='classic'
     # TODO(Mathilde): check with paper + Bertrand - change name of variables
     elif direction_type == 'binary' or direction_type == 'soft binary':
         if direction_type == 'soft binary':
-            b = np.multiply(activation(x, lb, ub, activation_type=activation_type) + 0.5 * (lb - ub), binary_indicator)
+            b = np.multiply(activation(x, lb, ub, activation_type=activation_type) + 1 / 2 * (lb - ub), binary_indicator)
             h = - grad_f
-        elif direction_type == 'soft binary':
-            b = np.multiply(np.sign(x + 0.5 * (lb - ub)), binary_indicator)
+        elif direction_type == 'binary':
+            b = np.multiply(np.sign(x + 1 / 2 * (lb - ub)), binary_indicator)
             h = - grad_f
 
         g = - np.multiply(proxy_distance_vector(x, lb, ub, beta, activation_type=activation_type), grad_f)

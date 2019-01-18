@@ -213,10 +213,32 @@ def inverse_activation_identity(x, beta=None):
 
 
 def check_type(n, H=None, q=None, lb=None, ub=None, binary_indicator=None, L=None, k_max=None,
-               absorption_val=None, initial_state=None,
+               absorption_val=None, gamma=None, theta=None, initial_state=None,
                beta=None, absorption=None,
                step_type=None, direction_type=None,
                activation_type=None, initial_ascent_type=None):
+    """
+
+    :param n: (integer)
+    :param H: (numpy.ndarray)
+    :param q: (numpy.ndarray)
+    :param lb: (numpy.ndarray)
+    :param ub: (numpy.ndarray)
+    :param binary_indicator: (numpy.ndarray)
+    :param L: (numpy.ndarray)
+    :param k_max: (integer)
+    :param absorption_val: (float)
+    :param gamma: (float)
+    :param theta: (float)
+    :param initial_state: (numpy.ndarray)
+    :param beta: (numpy.ndarray)
+    :param absorption: (boolean)
+    :param step_type: (string)
+    :param direction_type: (string)
+    :param activation_type: (string)
+    :param initial_ascent_type: (string)
+    :return:
+    """
 
     # TODO(Mathilde): Print messages if not condition?
 
@@ -252,6 +274,9 @@ def check_type(n, H=None, q=None, lb=None, ub=None, binary_indicator=None, L=Non
 
     if binary_indicator is not None:
         if isinstance(binary_indicator, np.ndarray):
+            for i in binary_indicator:
+                if i != 0 and i != 1:
+                    return False
             return len(binary_indicator) == n
         else:
             return False
@@ -265,6 +290,12 @@ def check_type(n, H=None, q=None, lb=None, ub=None, binary_indicator=None, L=Non
 
     if absorption_val is not None:
         return isinstance(absorption_val, float)
+
+    if gamma is not None:
+        return isinstance(gamma, float)
+
+    if theta is not None:
+        return isinstance(theta, float)
 
     if beta is not None:
         if isinstance(beta, np.ndarray):
