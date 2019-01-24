@@ -21,6 +21,6 @@ For examples of how to use the module, run the jupyter notebook /visualizations/
 
 # Contacts:
 
-Bertand Travacca: bertrand.travacca@berkeley.edu
+Bertand Travacca: cassoulet.bon@gmail.com
 
 Mathilde Badoual: mathilde.badoual@berkeley.edu
