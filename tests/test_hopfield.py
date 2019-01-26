@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-import hmip.hopfield as hop
+import hmip.hopfield as hopfield
 
 
 class TestHopfield(unittest.TestCase):
@@ -15,18 +15,18 @@ class TestHopfield(unittest.TestCase):
         self.L = 1
 
     def test_hopfield_default(self):
-        x, x_h, f_val_hist, step_size = hop.hopfield(self.H, self.q, self.lb, self.ub, self.binary_indicator, self.L,
+        x, x_h, f_val_hist, step_size = hopfield(self.H, self.q, self.lb, self.ub, self.binary_indicator, self.L,
                                                      k_max=self.k_max)
         self.assertEqual(x.shape[0], self.q.shape[0])
         self.assertEqual(x.shape[1], self.k_max)
 
     def test_hopfield_step_type_classic(self):
-        x, x_h, f_val_hist, step_size = hop.hopfield(self.H, self.q, self.lb, self.ub, self.binary_indicator, self.L,
+        x, x_h, f_val_hist, step_size = hopfield(self.H, self.q, self.lb, self.ub, self.binary_indicator, self.L,
                                                      k_max=self.k_max,
                                                      step_type='classic')
 
     def test_hopfield_step_type_armijo(self):
-        x, x_h, f_val_hist, step_size = hop.hopfield(self.H, self.q, self.lb, self.ub, self.binary_indicator, self.L,
+        x, x_h, f_val_hist, step_size = hopfield(self.H, self.q, self.lb, self.ub, self.binary_indicator, self.L,
                                                      k_max=self.k_max,
                                                      step_type='armijo')
 
