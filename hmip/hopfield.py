@@ -9,7 +9,7 @@ DEFAULT_DIRECTION_TYPE = 'classic'
 
 
 # TODO(Mathilde): find another name fot L and H -> should be lower case
-def hopfield(H, q, lb, ub, binary_indicator, L,
+def hopfield(H, q, lb, ub, binary_indicator,
              k_max=0, absorption_val=0.1, gamma=0, theta=0,
              initial_state=None, beta=None, absorption=False,
              step_type=DEFAULT_STEP_TYPE, direction_type=DEFAULT_DIRECTION_TYPE,
@@ -19,14 +19,13 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
     Solves the following optimization problem by computing the Hopfield method
         min f(x) = 1/2 x^T * H * x + q^T * x
             st lb <= x <= ub
-            x_i \in {0, 1}^n if binary_indicator_i == 1
+            x_i \in {lb_i, ub_i} if binary_indicator_i == 1
 
     :param H: (size(x), size(x)) matrix of the optimization problem
     :param q: (size(x), 1) matrix of the optimization problem
     :param lb: (size(x), 1) matrix of the optimization problem
     :param ub: (size(x), 1) matrix of the optimization problem
     :param binary_indicator: (size(x), 1) vector of value 1 if the corresponding x is in {0, 1} and 0 otherwise.
-    :param L:
     :param k_max: (default = 0) integer
     :param absorption: (default = False) boolean
     :param absorption_val: (default = 1) float
@@ -55,6 +54,7 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
     f_val_hist = np.ones(k_max)
     step_size = np.ones(k_max)
 
+    smoothness_coef = smoothness_coefficient()
 
     x0 = initial_ascent(H, q, lb, ub, binary_indicator, L, initial_state, initial_ascent_type=initial_ascent_type)
 
@@ -94,6 +94,15 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
             x[:, k + 1] = absorb_solution_to_limits(x[:, k + 1], ub, lb, absorption_val)
 
     return x, x_h, f_val_hist, step_size
+
+
+def smoothness_coefficient(H):
+    """
+    Compute the soothness coefficient with max(eig(H))
+    :param H: (np.array) matrix of size (n, n), quadratic term of the problem
+    :return: (np.float) scalar, smoothness coefficient
+    """
+    return np.max(np.linalg.eigvals(H))
 
 
 def objective_function(x, H, q):
