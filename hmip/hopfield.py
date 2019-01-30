@@ -11,7 +11,7 @@ DEFAULT_DIRECTION_TYPE = 'classic'
 # TODO(Mathilde): find another name fot L and H -> should be lower case
 def hopfield(H, q, lb, ub, binary_indicator, L,
              k_max=0, absorption_val=0.1, gamma=0, theta=0,
-             initial_state=None, beta=None, absorption=False,
+             x_0=None, beta=None, absorption=False,
              step_type=DEFAULT_STEP_TYPE, direction_type=DEFAULT_DIRECTION_TYPE,
              activation_type=DEFAULT_ACTIVATION_TYPE, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE):
     """
@@ -32,12 +32,15 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
     :param absorption_val: (default = 1) float
     :param gamma:
     :param theta:
-    :param initial_state:
+    :param x_0: initial state
     :param beta: (default = None) array of size x, if it is None, it will be ones(size(x))
     :param step_type: (string)
     :param direction_type: (string)
     :param activation_type: (string)
-    :param initial_ascent_type (string)
+    :param initial_ascent_type (string):
+            - 'no_ascent'               (takes default value at the center of the box [lb,ub] if no initial type is given)
+            - 'ascent'                  (classic gradient ascent with step size 1/L)
+            - 'binary_neutral_ascent'   (gradient ascent for non binary components, binary states are taken at the center)
 
     :return: x, x_h, f_val_hist, step_size
 
@@ -56,7 +59,7 @@ def hopfield(H, q, lb, ub, binary_indicator, L,
     step_size = np.ones(k_max)
 
 
-    x0 = initial_ascent(H, q, lb, ub, binary_indicator, L, initial_state, initial_ascent_type=initial_ascent_type)
+    x_0 = initial_state(H, q, lb, ub, binary_indicator, L, x_0, initial_ascent_type=initial_ascent_type)
 
     x[:, 0] = x0
     x_h[:, 0] = inverse_activation(x0, lb, ub, beta=beta, activation_type=activation_type)
@@ -120,38 +123,27 @@ def absorb_solution_to_limits(x, ub, lb, absorption_val):
     return x
 
 
-def initial_ascent(H, q, lb, ub, binary_indicator, L, initial_state, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE):
-    n = len(q)
-    ascent = True
+def initial_state(H, q, lb, ub, binary_indicator, L,  k_max, x_0, initial_ascent_type):
+    if x_0 is None or utils.is_in_box(x_0, ub, lb) is False:
+        x_0 = lb+(ub-lb)/2
 
-    if initial_ascent_type == 'classic' or initial_state is None or not utils.check_type(n, initial_state=initial_state):
-        return np.zeros(n)
-    # else:
-    #
-    #     x0 = initial_state
-    #     while ascent:
-    #         grad_f = H * x0 + f;
-    #         if strcmp(options.initial_ascent, 'ascent') and ascent:
-    #             if norm(gradf) == 0
-    #                 gradf = L * rand(n, 1) / 10;
-    #             end
-    #             x0 = segment_projection(x0 + gradf / L, lb + options.ascent_boundary, ub - options.ascent_boundary);
-    #             if min(x0 - lb) == options.ascent_boundary | | min(ub - x0) == options.ascent_boundary
-    #                 ascent = 'no';
-    #             end
-    #
-    #         elseif
-    #         strcmp(options.initial_ascent, 'binary_neutral_ascent') & & strcmp(ascent, 'yes')
-    #         if norm((1 - binary_indicator). * gradf) == 0
-    #             gradf = L * rand(n, 1) / 10;
-    #         end
-    #         x0 = segment_projection(x0 + (1 - binary_indicator). * gradf / L, lb + options.ascent_boundary,
-    #                                 ub - options.ascent_boundary);
-    #         if min(x0 - lb) == options.ascent_boundary | | min(ub - x0) == options.ascent_boundary
-    #             ascent = 'no';
-    else:
-        x0 = initial_state
-    return x0
+    if initial_ascent_type is 'no_ascent':
+        return x_0
+
+    if initial_ascent_type is 'ascent':
+        k = 0
+        while k < k_max or utils.is_in_box(x_0, ub, lb):
+            grad_f = np.dot(H, x_0) + q
+            x_0 = x_0+(1/L)*grad_f
+            k = k+1
+
+    if initial_ascent_type is 'binary_neutral_ascent':
+        k = 0
+        while k < k_max or utils.is_in_box(x_0, ub, lb):
+            grad_f = np.dot(H, x_0) + q
+            x_0 = x_0 + (1 / L) * np.multiply(grad_f, np.ones([len(x_0), 1])-binary_indicator)
+            k = k + 1
+
 
 
 def find_direction(x, grad_f, lb, ub, binary_indicator, direction_type='classic', absorption=False, gamma=0, theta=0,
@@ -234,7 +226,7 @@ def proxy_distance_vector(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATI
     :return:
     """
     if beta is None:
-        beta = np.ones(len(x))
+        beta = np.ones(x.shape[0])
     z = np.divide((x - lb), (ub - lb))
     if activation_type == 'pwl':
         return utils.proxy_distance_vector_pwl(z, beta)
@@ -319,7 +311,7 @@ def inverse_activation(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATION_
     :return:
     """
     if beta is None:
-        beta = np.ones(len(x))
+        beta = np.ones(x.shape[0])
     z = np.divide((x - lb), (ub - lb))
     if activation_type == 'pwl':
         return utils.inverse_activation_pwl(z, beta)

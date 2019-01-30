@@ -2,6 +2,14 @@ import unittest
 import numpy as np
 import hmip.utils as utils
 
+class TestIsInBox(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def test_is_in_box(self):
+        output = utils.is_in_box(np.array([0.5, 0.5]), np.array([1, 1]), np.array([0, 0]))
+        self.assertTrue(output)
+
 
 class TestProxyDistanceVector(unittest.TestCase):
     def setUp(self):

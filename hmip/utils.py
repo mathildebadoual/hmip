@@ -1,6 +1,13 @@
 import numpy as np
 
 
+def is_in_box(x, ub, lb):
+    if np.all(np.greater(ub, x)) and np.all(np.greater(x, lb)):
+        return True
+    else:
+        return False
+
+
 def proxy_distance_vector_tanh(x, beta):
     """
 
@@ -304,7 +311,7 @@ def check_type(n, H=None, q=None, lb=None, ub=None, binary_indicator=None, L=Non
             return False
 
     if k_max is not None:
-        return isinstance(k_max,float)
+        return isinstance(k_max, float)
 
     if absorption is not None:
         return isinstance(ub, bool)
