@@ -10,8 +10,8 @@ DEFAULT_DIRECTION_TYPE = 'classic'
 
 # TODO(Mathilde): find another name fot L and H -> should be lower case
 def hopfield(H, q, lb, ub, binary_indicator,
-             k_max=0, absorption_val=0.1, gamma=0, theta=0,
-             initial_state=None, beta=None, absorption=False,
+             k_max=0, absorption=None, gamma=0, theta=0,
+             initial_state=None, beta=None, alpha=None,
              step_type=DEFAULT_STEP_TYPE, direction_type=DEFAULT_DIRECTION_TYPE,
              activation_type=DEFAULT_ACTIVATION_TYPE, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE):
     """
@@ -27,8 +27,7 @@ def hopfield(H, q, lb, ub, binary_indicator,
     :param ub: (size(x), 1) matrix of the optimization problem
     :param binary_indicator: (size(x), 1) vector of value 1 if the corresponding x is in {0, 1} and 0 otherwise.
     :param k_max: (default = 0) integer
-    :param absorption: (default = False) boolean
-    :param absorption_val: (default = 1) float
+    :param absorption: (default = None) float
     :param gamma:
     :param theta:
     :param initial_state:
@@ -54,9 +53,10 @@ def hopfield(H, q, lb, ub, binary_indicator,
     f_val_hist = np.ones(k_max)
     step_size = np.ones(k_max)
 
-    smoothness_coef = smoothness_coefficient()
+    smoothness_coef = smoothness_coefficient(H)
 
-    x0 = initial_ascent(H, q, lb, ub, binary_indicator, L, initial_state, initial_ascent_type=initial_ascent_type)
+    x0 = initial_ascent(H, q, lb, ub, binary_indicator, smoothness_coef, initial_state,
+                        initial_ascent_type=initial_ascent_type)
 
     x[:, 0] = x0
     x_h[:, 0] = inverse_activation(x0, lb, ub, beta=beta, activation_type=activation_type)
@@ -72,7 +72,7 @@ def hopfield(H, q, lb, ub, binary_indicator,
         # update hidden values
         # TODO(Mathilde): remove the for loop (more efficient matrix product)
         if step_type == 'armijo':
-            alpha = np.linalg.norm(grad_f) / L
+            alpha = np.divide(np.linalg.norm(grad_f), smoothness_coef)
             f_val_hist[k + 1] = f_val_hist[k] + 1
             prox_dist = proxy_distance_vector(x[:, k], lb, ub, beta=beta, activation_type=activation_type)
             while f_val_hist[k + 1] > f_val_hist[k] + alpha * np.dot(np.multiply(prox_dist, grad_f).T, direction):
@@ -83,15 +83,15 @@ def hopfield(H, q, lb, ub, binary_indicator,
             step_size[k] = 2 * alpha
 
         else:
-            # alpha = alpha_hop(x[:, k], grad_f, direction, k, lb, ub, L)
-            alpha = 0.1
+            if alpha is None:
+                alpha = alpha_hop(x[:, k], grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_type)
             x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta=beta,
                                                          activation_type=activation_type)
             step_size[k] = alpha
             f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
 
-        if absorption:
-            x[:, k + 1] = absorb_solution_to_limits(x[:, k + 1], ub, lb, absorption_val)
+        if absorption is not None:
+            x[:, k + 1] = absorb_solution_to_limits(x[:, k + 1], ub, lb, absorption)
 
     return x, x_h, f_val_hist, step_size
 
@@ -258,14 +258,14 @@ def proxy_distance_vector(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATI
 
 
 # TODO(Mathilde): remove the integers without justification
-def alpha_hop(x, lb, ub, grad_f, direction, k, L, beta, direction_type):
+def alpha_hop(x, grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_type):
     sigma = proxy_distance_vector(x, lb, ub)
-    scale = L * np.norm(np.multiply(beta, direction)) ** 2 + 12 * np.power(np.multiply(beta, direction),
+    scale = smoothness_coef * np.linalg.norm(np.multiply(beta, direction)) ** 2 + 12 * np.power(np.multiply(beta, direction),
                                                                            2).T * np.absolute(grad_f)
     alpha = - np.multiply(sigma, grad_f).T * direction / scale
 
     if direction_type == 'stochastic':
-        alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (L * np.sqrt(k))
+        alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (smoothness_coef * np.sqrt(k))
 
     return alpha
 
