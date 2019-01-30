@@ -56,28 +56,29 @@ def hopfield(H, q, lb, ub, binary_indicator,
     f_val_hist = np.ones(k_max)
     step_size = np.ones(k_max)
 
+    if beta is None:
+        beta = np.ones(n)
+
     smoothness_coef = smoothness_coefficient(H)
 
-    x0 = initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coef, x_0,
-                       initial_ascent_type=initial_ascent_type)
+    x0 = initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coef, x_0, initial_ascent_type)
 
     x[:, 0] = x0
-    x_h[:, 0] = inverse_activation(x0, lb, ub, beta=beta, activation_type=activation_type)
+    x_h[:, 0] = inverse_activation(x0, lb, ub, beta, activation_type)
     f_val_hist[0] = objective_function(x[:, 0], H, q)
 
     for k in range(k_max - 1):
         # gradient
         grad_f = np.dot(H, x[:, k]) + q
         # direction
-        direction = find_direction(x[:, k], grad_f, lb, ub, binary_indicator, direction_type, absorption, gamma=gamma,
-                                   theta=theta, beta=beta, activation_type=DEFAULT_ACTIVATION_TYPE)
-
+        direction = find_direction(x[:, k], grad_f, lb, ub, binary_indicator, beta, direction_type, absorption, gamma,
+                                   theta, activation_type)
         # update hidden values
         # TODO(Mathilde): remove the for loop (more efficient matrix product)
         if step_type == 'armijo':
             alpha = np.divide(np.linalg.norm(grad_f), smoothness_coef)
             f_val_hist[k + 1] = f_val_hist[k] + 1
-            prox_dist = proxy_distance_vector(x[:, k], lb, ub, beta=beta, activation_type=activation_type)
+            prox_dist = proxy_distance_vector(x[:, k], lb, ub, beta, activation_type)
             while f_val_hist[k + 1] > f_val_hist[k] + alpha * np.dot(np.multiply(prox_dist, grad_f).T, direction):
                 x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta, activation_type)
                 f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
@@ -87,9 +88,9 @@ def hopfield(H, q, lb, ub, binary_indicator,
 
         else:
             if alpha is None:
-                alpha = alpha_hop(x[:, k], grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_type)
-            x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta=beta,
-                                                         activation_type=activation_type)
+                alpha = alpha_hop(x[:, k], grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_type,
+                                  activation_type)
+            x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta, activation_type)
             step_size[k] = alpha
             f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
 
@@ -133,8 +134,7 @@ def absorb_solution_to_limits(x, ub, lb, absorption_val):
 
 
 def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coef, x_0,
-                  initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE):
-
+                  initial_ascent_type):
     if x_0 is None or not utils.is_in_box(x_0, ub, lb):
         x_0 = lb + (ub - lb) / 2
 
@@ -155,8 +155,8 @@ def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coef, x_0,
     return x_0
 
 
-def find_direction(x, grad_f, lb, ub, binary_indicator, direction_type='classic', absorption=False, gamma=0, theta=0,
-                   beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
+def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, absorption, gamma, theta,
+                   activation_type):
     """
 
     :param x:
@@ -214,8 +214,8 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, direction_type='classic'
 
     else:
         print('direction type does not exist -> automatically set direction type to pwl')
-        direction = find_direction(x, grad_f, lb, ub, binary_indicator, direction_type=direction_type,
-                                   absorption=absorption, gamma=gamma, theta=theta, beta=beta,
+        direction = find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type=direction_type,
+                                   absorption=absorption, gamma=gamma, theta=theta,
                                    activation_type=DEFAULT_ACTIVATION_TYPE)
 
     # normalize
@@ -224,7 +224,7 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, direction_type='classic'
     return direction
 
 
-def proxy_distance_vector(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
+def proxy_distance_vector(x, lb, ub, beta, activation_type):
     """
     Compute the binary proxy distance sigma'(sigma^(-1)(x))
 
@@ -235,8 +235,7 @@ def proxy_distance_vector(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATI
     :param activation_type:
     :return:
     """
-    if beta is None:
-        beta = np.ones(x.shape[0])
+
     z = np.divide((x - lb), (ub - lb))
     if activation_type == 'pwl':
         return utils.proxy_distance_vector_pwl(z, beta)
@@ -251,12 +250,11 @@ def proxy_distance_vector(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATI
 
 
 # TODO(Mathilde): remove the integers without justification
-def alpha_hop(x, grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_type):
-    sigma = proxy_distance_vector(x, lb, ub)
-    scale = smoothness_coef * np.linalg.norm(np.multiply(beta, direction)) ** 2 + 12 * np.power(
-        np.multiply(beta, direction),
-        2).T * np.absolute(grad_f)
-    alpha = - np.multiply(sigma, grad_f).T * direction / scale
+def alpha_hop(x, grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_type, activation_type):
+    sigma = proxy_distance_vector(x, lb, ub, beta, activation_type)
+    scale = smoothness_coef * np.linalg.norm(np.multiply(beta, direction)) ** 2 + 12 * np.dot(np.power(
+        np.multiply(beta, direction), 2), np.absolute(grad_f))
+    alpha = - np.dot(np.multiply(sigma, grad_f), direction) / scale
 
     if direction_type == 'stochastic':
         alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (smoothness_coef * np.sqrt(k))
@@ -264,7 +262,7 @@ def alpha_hop(x, grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_
     return alpha
 
 
-def hopfield_update(x_h, lb, ub, alpha, direction, beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
+def hopfield_update(x_h, lb, ub, alpha, direction, beta, activation_type):
     """
     Compute the explicit discretization of HNN for one step.
 
@@ -277,16 +275,16 @@ def hopfield_update(x_h, lb, ub, alpha, direction, beta=None, activation_type=DE
     :param activation_type:
     :return:
     """
+
     # update of the hidden states
     x_h = x_h + alpha * direction
 
     # update of the state
-    x = activation(x_h, lb, ub, beta=beta, activation_type=activation_type)
+    x = activation(x_h, lb, ub, beta, activation_type)
     return x, x_h
 
 
-# TODO(Mathilde): decide of which default activation
-def activation(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
+def activation(x, lb, ub, beta, activation_type):
     """
 
     :param x:
@@ -296,8 +294,6 @@ def activation(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
     :param activation_type:
     :return:
     """
-    if beta is None:
-        beta = np.ones(len(x))
     z = np.divide((x - lb), (ub - lb))
     if activation_type == 'pwl':
         return utils.activation_pwl(z, beta)
@@ -311,7 +307,7 @@ def activation(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
         return utils.activation_tanh(z, beta)
 
 
-def inverse_activation(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATION_TYPE):
+def inverse_activation(x, lb, ub, beta, activation_type):
     """
 
     :param x:
@@ -321,8 +317,6 @@ def inverse_activation(x, lb, ub, beta=None, activation_type=DEFAULT_ACTIVATION_
     :param activation_type:
     :return:
     """
-    if beta is None:
-        beta = np.ones(x.shape[0])
     z = np.divide((x - lb), (ub - lb))
     if activation_type == 'pwl':
         return utils.inverse_activation_pwl(z, beta)

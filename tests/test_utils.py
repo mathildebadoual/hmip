@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 import hmip.utils as utils
 
+
 class TestIsInBox(unittest.TestCase):
     def setUp(self):
         pass

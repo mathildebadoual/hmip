@@ -9,7 +9,7 @@ class TestHopfield(unittest.TestCase):
         self.q = np.array([-2.7, -1.8])
         self.k_max = 20
         self.binary_indicator = np.array([0, 1])
-        self.beta = 4
+        self.beta = 1
         self.ub = np.array([1, 1])
         self.lb = np.array([0, 0])
         self.L = 1
@@ -52,6 +52,17 @@ class TestOthers(unittest.TestCase):
         output = hop.smoothness_coefficient(self.H)
         max_eigen_values = 2
         self.assertEqual(output, max_eigen_values)
+
+    def test_alpha_hop(self):
+        pass
+
+
+class TestHopfieldUpdate(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def test_hopfield_update(self):
+        pass
 
 
 class TestFindDirection(unittest.TestCase):
