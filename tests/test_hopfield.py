@@ -12,7 +12,6 @@ class TestHopfield(unittest.TestCase):
         self.beta = 1
         self.ub = np.array([1, 1])
         self.lb = np.array([0, 0])
-        self.L = 1
 
     def test_hopfield_default(self):
         x, x_h, f_val_hist, step_size = hop.hopfield(self.H, self.q, self.lb, self.ub, self.binary_indicator,
@@ -36,8 +35,15 @@ class TestHopfield(unittest.TestCase):
 
 class TestOthers(unittest.TestCase):
     def setUp(self):
-        self.dim = 10
+        self.n = 2
         self.H = np.array([[2, 0], [0, 1]])
+        self.q = np.array([-2.7, -1.8])
+        self.k_max = 20
+        self.binary_indicator = np.array([0, 1])
+        self.beta = 1
+        self.ub = np.array([1, 1])
+        self.lb = np.array([0, 0])
+        self.x = np.ones((self.n, self.k_max))
 
     def test_create_initial_ascent(self):
         pass
@@ -54,7 +60,15 @@ class TestOthers(unittest.TestCase):
         self.assertEqual(output, max_eigen_values)
 
     def test_alpha_hop(self):
-        pass
+        grad_f = np.ones(2)
+        direction = np.ones(2)
+        k = 1
+        smoothness_coef = 1
+        direction_type = hop.DEFAULT_DIRECTION_TYPE
+        activation_type = hop.DEFAULT_ACTIVATION_TYPE
+        output = hop.alpha_hop(self.x[:, k], grad_f, direction, k, self.lb, self.ub, smoothness_coef, self.beta,
+                               direction_type, activation_type)
+        self.assertEqual(output, 0)
 
 
 class TestHopfieldUpdate(unittest.TestCase):
