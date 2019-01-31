@@ -1,9 +1,12 @@
+# This is only used for developing the software, will eventually be deleted
+
+
 import numpy as np
 import hmip.utils as utils
 import math
 
 DEFAULT_ACTIVATION_TYPE = 'pwl'
-DEFAULT_INITIAL_ASCENT_TYPE = 'classic'
+DEFAULT_INITIAL_ASCENT_TYPE = 'no_ascent'
 DEFAULT_STEP_TYPE = 'classic'
 DEFAULT_DIRECTION_TYPE = 'classic'
 
@@ -50,7 +53,7 @@ def hopfield(H, q, lb, ub, binary_indicator,
 
     n = np.size(q)
 
-    # initialization of the hopfield vectors
+    # initialization of the Hopfield vector
     x = np.ones((n, k_max))
     x_h = np.ones((n, k_max))
     f_val_hist = np.ones(k_max)
@@ -133,23 +136,25 @@ def absorb_solution_to_limits(x, ub, lb, absorption_val):
     return x
 
 
-def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coef, x_0,
+def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
                   initial_ascent_type):
+    print(x_0)
     if x_0 is None or not utils.is_in_box(x_0, ub, lb):
+        # x_0 = lb + (ub - lb) / 2
         x_0 = lb + (ub - lb) / 2
 
     if initial_ascent_type is 'ascent':
         k = 0
         while k < k_max or utils.is_in_box(x_0, ub, lb):
             grad_f = np.dot(H, x_0) + q
-            x_0 = x_0 + (1 / binary_indicator) * grad_f
+            x_0 = x_0 + (1 / smoothness_coeff) * grad_f
             k = k + 1
 
     elif initial_ascent_type is 'binary_neutral_ascent':
         k = 0
         while k < k_max or utils.is_in_box(x_0, ub, lb):
             grad_f = np.dot(H, x_0) + q
-            x_0 = x_0 + (1 / smoothness_coef) * np.multiply(grad_f, np.ones([len(x_0), 1]) - binary_indicator)
+            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones([len(x_0), 1]) - binary_indicator)
             k = k + 1
 
     return x_0
@@ -250,11 +255,19 @@ def proxy_distance_vector(x, lb, ub, beta, activation_type):
 
 
 # TODO(Mathilde): remove the integers without justification
+
+# TODO(Bertrand): not a priority, but the coefficient 12 in the denominator could be improved, by choosing the best
+#  constant for each activation function type
+
 def alpha_hop(x, grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_type, activation_type):
+
     sigma = proxy_distance_vector(x, lb, ub, beta, activation_type)
-    scale = smoothness_coef * np.linalg.norm(np.multiply(beta, direction)) ** 2 + 12 * np.dot(np.power(
+
+    denominator = smoothness_coef * np.linalg.norm(np.multiply(beta, direction)) ** 2 + 12 * np.dot(np.power(
         np.multiply(beta, direction), 2), np.absolute(grad_f))
-    alpha = - np.dot(np.multiply(sigma, grad_f), direction) / scale
+    numerator = - np.dot(np.multiply(sigma, grad_f), direction)
+
+    alpha = numerator / denominator
 
     if direction_type == 'stochastic':
         alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (smoothness_coef * np.sqrt(k))
