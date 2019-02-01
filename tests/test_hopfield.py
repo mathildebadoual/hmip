@@ -137,12 +137,13 @@ class TestHopfieldUpdate(unittest.TestCase):
 
     def test_hopfield_update(self):
         activation_type = ['pwl', 'exp', 'sin', 'identity', 'tanh']
-        solution = [[1, 1], [0.81606028, 0.81606028], [0.92073549, 0.92073549], [1., 1.], [0.88079708, 0.88079708]]
+        solution = [[1, 1], [0.88843492, 0.88843492], [0.99874749, 0.99874749], [1., 1.], [0.95257413, 0.95257413]]
 
         x_h = np.ones(self.n)
 
         for i in range(len(activation_type)):
-            self.assertTrue(np.array_equal(np.round(hop.activation(x_h, self.lb, self.ub, self.beta, activation_type[i]), decimals=8)[0],
+            self.assertTrue(np.array_equal(np.round(hop.activation(x_h, self.lb, self.ub, self.beta,
+                                                                   activation_type[i]), decimals=8)[0],
                              solution[i]))
 
 
