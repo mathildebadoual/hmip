@@ -143,7 +143,7 @@ class TestHopfieldUpdate(unittest.TestCase):
 
         for i in range(len(activation_type)):
             self.assertTrue(np.array_equal(np.round(hop.activation(x_h, self.lb, self.ub, self.beta,
-                                                                   activation_type[i]), decimals=8)[0],
+                                                                   activation_type[i])[0], decimals=8),
                              solution[i]))
 
 
