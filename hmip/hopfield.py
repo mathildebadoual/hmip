@@ -176,7 +176,7 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
     binary_absorption_mask = compute_binary_absorption_mask(x, lb, ub, binary_indicator)
 
     # classic gradient
-    if direction_type == 'classic' or direction_type is 'stochastic':
+    if direction_type is 'classic' or direction_type is 'stochastic':
         if not absorption:
             direction = - grad_f
         else:
@@ -188,12 +188,12 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
 
     # binary gradient related direction methods
     # TODO(Mathilde): check with paper + Bertrand - change name of variables
-    elif direction_type == 'binary' or direction_type == 'soft binary':
-        if direction_type == 'soft binary':
+    elif direction_type is 'binary' or direction_type is 'soft binary':
+        if direction_type is 'soft binary':
             b = np.multiply(activation(x, lb, ub, activation_type=activation_type) + 1 / 2 * (lb - ub),
                             binary_indicator)
             h = - grad_f
-        elif direction_type == 'binary':
+        elif direction_type is 'binary':
             b = np.multiply(np.sign(x + 1 / 2 * (lb - ub)), binary_indicator)
             h = - grad_f
 
@@ -256,7 +256,7 @@ def alpha_hop(x, grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_
         np.multiply(beta, direction), 2), np.absolute(grad_f))
     alpha = - np.dot(np.multiply(sigma, grad_f), direction) / scale
 
-    if direction_type == 'stochastic':
+    if direction_type is 'stochastic':
         alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (smoothness_coef * np.sqrt(k))
 
     return alpha
@@ -295,15 +295,15 @@ def activation(x, lb, ub, beta, activation_type):
     :return:
     """
     z = np.divide((x - lb), (ub - lb))
-    if activation_type == 'pwl':
+    if activation_type is 'pwl':
         return utils.activation_pwl(z, beta)
-    if activation_type == 'exp':
+    if activation_type is 'exp':
         return utils.activation_exp(z, beta)
-    if activation_type == 'sin':
+    if activation_type is 'sin':
         return utils.activation_sin(z, beta)
-    if activation_type == 'identity':
+    if activation_type is 'identity':
         return utils.activation_pwl(z, beta)
-    if activation_type == 'tanh':
+    if activation_type is 'tanh':
         return utils.activation_tanh(z, beta)
 
 
@@ -318,15 +318,15 @@ def inverse_activation(x, lb, ub, beta, activation_type):
     :return:
     """
     z = np.divide((x - lb), (ub - lb))
-    if activation_type == 'pwl':
+    if activation_type is 'pwl':
         return utils.inverse_activation_pwl(z, beta)
-    if activation_type == 'exp':
+    if activation_type is 'exp':
         return utils.inverse_activation_exp(z, beta)
-    if activation_type == 'sin':
+    if activation_type is 'sin':
         return utils.inverse_activation_sin(z, beta)
-    if activation_type == 'identity':
+    if activation_type is 'identity':
         return utils.inverse_activation_pwl(z, beta)
-    if activation_type == 'tanh':
+    if activation_type is 'tanh':
         return utils.inverse_activation_tanh(z, beta)
 
 

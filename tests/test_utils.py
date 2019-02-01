@@ -91,6 +91,45 @@ class TestActivationFunction(unittest.TestCase):
         output = utils.activation_identity(x, beta)
         self.assertTrue(np.array_equal(output, x))
 
+class TestInverseActivationFunction(unittest.TestCase):
+    def setUp(self):
+        self.dim = 10
+
+    def test_tanh(self):
+        x = 1/2 * np.ones(self.dim)
+        beta = [[1, 0], [0, 1]]
+        output = utils.inverse_activation_tanh(x, beta)
+        self.assertTrue(np.array_equal(output[0], x))
+
+    def test_pwl(self):
+        x = 1 / 2 * np.ones(self.dim)
+        beta = np.ones(self.dim)
+        output = utils.inverse_activation_pwl(x, beta)
+        self.assertTrue(np.array_equal(output, x))
+
+        x = 2 * np.ones(self.dim)
+        beta = np.ones(self.dim)
+        output = utils.inverse_activation_pwl(x, beta)
+        self.assertTrue(np.array_equal(output, beta))
+
+    def test_sin(self):
+        x = np.ones(self.dim)
+        beta = np.ones(self.dim)
+        output = utils.inverse_activation_sin(x, beta)
+        self.assertTrue(np.array_equal(np.round_(output), x))
+
+    def test_exp(self):
+        x = 1 / 2 * np.ones(self.dim)
+        beta = np.ones(self.dim)
+        output = utils.inverse_activation_exp(x, beta)
+        self.assertTrue(np.array_equal(output, x))
+
+    def test_identity(self):
+        x = 1 / 2 * np.ones(self.dim)
+        beta = np.ones(self.dim)
+        output = utils.activation_identity(x, beta)
+        self.assertTrue(np.array_equal(output, x))
+
 
 class TestCheckType(unittest.TestCase):
     def setUp(self):
