@@ -107,7 +107,7 @@ class TestOthers(unittest.TestCase):
     def test_compute_binary_absorption_mask(self):
         x_0 = 0.5 * np.ones(self.n)
         sol = hop.compute_binary_absorption_mask(x_0, self.lb, self.ub, self.binary_indicator)
-        self.assertEqual(np.array_equal(sol, 2*x_0))
+        self.assertTrue(np.array_equal(sol, 2*x_0))
 
     def test_smoothness_coefficient(self):
         output = hop.smoothness_coefficient(self.H)
@@ -142,7 +142,7 @@ class TestHopfieldUpdate(unittest.TestCase):
         x_h = np.ones(self.n)
 
         for i in range(len(activation_type)):
-            self.assertTrue(np.array_equal(np.round(hop.activation(x_h, self.lb, self.ub, self.beta, activation_type[i]), decimals=8),
+            self.assertTrue(np.array_equal(np.round(hop.activation(x_h, self.lb, self.ub, self.beta, activation_type[i]), decimals=8)[0],
                              solution[i]))
 
 
