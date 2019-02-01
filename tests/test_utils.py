@@ -96,7 +96,7 @@ class TestInverseActivationFunction(unittest.TestCase):
         self.dim = 10
 
     def test_tanh(self):
-        x = 1/2 * np.ones(self.dim)
+        x = 1/2 * np.ones(2)
         beta = [[1, 0], [0, 1]]
         output = utils.inverse_activation_tanh(x, beta)
         self.assertTrue(np.array_equal(output[0], x))
