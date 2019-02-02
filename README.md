@@ -1,6 +1,7 @@
 # Hopfield-NLMIP
 
 [![Build Status](https://travis-ci.com/mathildebadoual/hmip.svg?token=sSNFwE8cjSB4sGxziMoY&branch=master)](https://travis-ci.com/mathildebadoual/hmip)
+
 Solver for large scale nonlinear mixed integer problems.
 
 Developed at [eCAL](https://ecal.berkeley.edu/), UC Berkeley.
