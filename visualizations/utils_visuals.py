@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from hmip.hopfield import objective_function
 
 
 def plot_evolution_objective_function_2d(H, q, x, figure_path):
@@ -15,15 +14,19 @@ def plot_evolution_objective_function_2d(H, q, x, figure_path):
     x_1 = np.linspace(0, 1, num=500).reshape((1, -1))
     x_2 = np.linspace(0, 1, num=500).reshape((1, -1))
     x_meshgrid_1, x_meshgrid_2 = np.meshgrid(x_1, x_2)
-    x_tot = np.concatenate((x_meshgrid_1, x_meshgrid_2), axis=0)
+    x_tot = np.concatenate((x_1, x_2), axis=0)
 
-    objective = objective_function(x_tot, H, q)
+    objective = objective_function_2d(x_meshgrid_1, x_meshgrid_2, H, q)
 
     plt.figure(figsize=(7, 5))
     plt.contourf(x_meshgrid_1, x_meshgrid_2, objective, 50, cmap='plasma')
-    plt.plot(x[0, :], x[1, :], 'black')
     plt.colorbar()
+    plt.plot(x[0, :], x[1, :], 'black')
     plt.xlabel('x1')
     plt.ylabel('x2')
     plt.savefig(figure_path)
     plt.show()
+
+
+def objective_function_2d(x_1, x_2, H, q):
+    return 1 / 2 * (H[0, 0] * x_1 ** 2 + H[1, 1] * x_2 ** 2 + 2 * H[0, 1] * x_1 * x_2) + q[0] * x_1 + q[1] * x_2
