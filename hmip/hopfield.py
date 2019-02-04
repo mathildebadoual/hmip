@@ -1,6 +1,3 @@
-# This is only used for developing the software, will eventually be deleted
-
-
 import numpy as np
 import hmip.utils as utils
 import math
