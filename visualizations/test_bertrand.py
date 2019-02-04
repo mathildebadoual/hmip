@@ -4,7 +4,7 @@ import hmip.hopfield as hop
 from visualizations.utils_visuals import plot_evolution_objective_function_2d
 
 
-H = np.array([[1, 1], [1, 1]])
+H = np.array([[3.1, 1.9], [1, 1]])
 q = np.array([-1, -0.5])
 k_max = 500
 binary_indicator = np.array([0, 1])

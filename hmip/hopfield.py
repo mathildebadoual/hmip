@@ -56,6 +56,9 @@ def hopfield(H, q, lb, ub, binary_indicator,
     f_val_hist = np.ones(k_max)
     step_size = np.ones(k_max)
 
+    # check if matrix is symmetric
+    H = utils.check_symmetric(H)
+
     if beta is None:
         beta = np.ones(n)
 
@@ -264,7 +267,7 @@ def alpha_hop(x, grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_
         np.multiply(beta, direction), 2), np.absolute(grad_f))
     numerator = - np.dot(np.multiply(sigma, grad_f), direction)
 
-    alpha = numerator / denominator
+    alpha = np.divide(numerator, denominator)
 
     if direction_type is 'stochastic':
         alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (smoothness_coef * np.sqrt(k))
