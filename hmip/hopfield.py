@@ -56,6 +56,9 @@ def hopfield(H, q, lb, ub, binary_indicator,
     f_val_hist = np.ones(k_max)
     step_size = np.ones(k_max)
 
+    # check if matrix is symmetric
+    H = utils.check_symmetric(H)
+
     if beta is None:
         beta = np.ones(n)
 
@@ -135,24 +138,26 @@ def absorb_solution_to_limits(x, ub, lb, absorption_val):
 
 def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
                   initial_ascent_type):
-    print(x_0)
     if x_0 is None or not utils.is_in_box(x_0, ub, lb):
         # x_0 = lb + (ub - lb) / 2
         x_0 = lb + (ub - lb) / 2
 
     if initial_ascent_type is 'ascent':
         k = 0
-        while k < k_max or utils.is_in_box(x_0, ub, lb):
+        while k < k_max and utils.is_in_box(x_0, ub - 0.1, lb + 0.1):
             grad_f = np.dot(H, x_0) + q
             x_0 = x_0 + (1 / smoothness_coeff) * grad_f
             k = k + 1
+        x_0 = activation(x_0, lb + 0.1, ub - 0.1, np.ones(len(x_0)), activation_type='pwl')
+
 
     elif initial_ascent_type is 'binary_neutral_ascent':
         k = 0
-        while k < k_max or utils.is_in_box(x_0, ub, lb):
+        while k < k_max and utils.is_in_box(x_0, ub, lb):
             grad_f = np.dot(H, x_0) + q
-            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones([len(x_0), 1]) - binary_indicator)
+            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, binary_indicator)
             k = k + 1
+        x_0 = activation(x_0, lb + 0.1, ub - 0.1, np.ones(len(x_0)), activation_type='pwl')
 
     return x_0
 
@@ -257,14 +262,13 @@ def proxy_distance_vector(x, lb, ub, beta, activation_type):
 #  constant for each activation function type
 
 def alpha_hop(x, grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_type, activation_type):
-
     sigma = proxy_distance_vector(x, lb, ub, beta, activation_type)
 
     denominator = smoothness_coef * np.linalg.norm(np.multiply(beta, direction)) ** 2 + 12 * np.dot(np.power(
         np.multiply(beta, direction), 2), np.absolute(grad_f))
     numerator = - np.dot(np.multiply(sigma, grad_f), direction)
 
-    alpha = numerator / denominator
+    alpha = np.divide(numerator, denominator)
 
     if direction_type is 'stochastic':
         alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (smoothness_coef * np.sqrt(k))
@@ -306,15 +310,15 @@ def activation(x, lb, ub, beta, activation_type):
     """
     z = np.divide((x - lb), (ub - lb))
     if activation_type is 'pwl':
-        return utils.activation_pwl(z, beta)
+        return lb + np.multiply(ub - lb, utils.activation_pwl(z, beta))
     if activation_type is 'exp':
-        return utils.activation_exp(z, beta)
+        return lb + np.multiply(ub - lb, utils.activation_exp(z, beta))
     if activation_type is 'sin':
-        return utils.activation_sin(z, beta)
+        return lb + np.multiply(ub - lb, utils.activation_sin(z, beta))
     if activation_type is 'identity':
-        return utils.activation_pwl(z, beta)
+        return lb + np.multiply(ub - lb, utils.activation_pwl(z, beta))
     if activation_type is 'tanh':
-        return utils.activation_tanh(z, beta)
+        return lb + np.multiply(ub - lb, utils.activation_tanh(z, beta))
 
 
 def inverse_activation(x, lb, ub, beta, activation_type):

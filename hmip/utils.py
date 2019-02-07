@@ -331,3 +331,12 @@ def check_type(n, H=None, q=None, lb=None, ub=None, binary_indicator=None, L=Non
 
     print('Add a variable to check')
     return None
+
+
+def check_symmetric(H):
+    if not np.allclose(H, H.T, atol=0):
+        H_new = 0.5 * (H + H.T)
+        print('Specified matrix H was not symmetric, matrix H has been replaced by 0.5(H+H.transpose) ')
+        return H_new
+    else:
+        return H
