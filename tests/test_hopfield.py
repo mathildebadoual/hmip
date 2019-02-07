@@ -12,7 +12,6 @@ class TestHopfield(unittest.TestCase):
         self.beta = 1
         self.ub = np.array([1, 1])
         self.lb = np.array([0, 0])
-        self.L = 1
         self.absorption = 1
         self.step_type = 'classic'
 
