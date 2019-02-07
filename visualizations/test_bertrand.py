@@ -11,6 +11,6 @@ binary_indicator = np.array([0, 1])
 ub = np.array([1, 1])
 lb = np.array([0, 0])
 
-x, x_h, f_val_hist, step_size = hop.hopfield(H, q, lb, ub, binary_indicator, k_max=k_max)
+x, x_h, f_val_hist, step_size = hop.hopfield(H, q, lb, ub, binary_indicator, k_max=k_max, initial_ascent_type='binary_neutral_ascent')
 
 plot_evolution_objective_function_2d(H, q, x, k_max, 'plots/objective_function_2d.png')
