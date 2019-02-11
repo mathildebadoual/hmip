@@ -1,8 +1,8 @@
-numpy==1.15.0
 nose
 coverage
 scipy
 jupyter
 matplotlib
 sympy
-cvxpy 
+cvxpy
+numpy==1.15.0

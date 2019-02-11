@@ -2,15 +2,15 @@ import numpy as np
 import hmip.utils as utils
 import math
 
-DEFAULT_ACTIVATION_TYPE = 'pwl'
+DEFAULT_ACTIVATION_TYPE = 'sin'
 DEFAULT_INITIAL_ASCENT_TYPE = 'no_ascent'
 DEFAULT_STEP_TYPE = 'classic'
-DEFAULT_DIRECTION_TYPE = 'classic'
+DEFAULT_DIRECTION_TYPE = 'binary'
 
 
 # TODO(Mathilde): find another name fot L and H -> should be lower case
 def hopfield(H, q, lb, ub, binary_indicator,
-             k_max=0, absorption=None, gamma=0, theta=0,
+             k_max=0, absorption=None, gamma=0.9, theta=0.1,
              x_0=None, beta=None, alpha=None,
              step_type=DEFAULT_STEP_TYPE, direction_type=DEFAULT_DIRECTION_TYPE,
              activation_type=DEFAULT_ACTIVATION_TYPE, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE):
@@ -155,7 +155,7 @@ def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
         k = 0
         while k < k_max and utils.is_in_box(x_0, ub, lb):
             grad_f = np.dot(H, x_0) + q
-            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, binary_indicator)
+            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(len(x_0))-binary_indicator)
             k = k + 1
         x_0 = activation(x_0, lb + 0.1, ub - 0.1, np.ones(len(x_0)), activation_type='pwl')
 
@@ -195,13 +195,17 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
 
     # binary gradient related direction methods
     # TODO(Mathilde): check with paper + Bertrand - change name of variables
-    elif direction_type is 'binary' or direction_type is 'soft binary':
-        if direction_type is 'soft binary':
-            b = np.multiply(activation(x, lb, ub, activation_type=activation_type) + 1 / 2 * (lb - ub),
+    elif direction_type is 'binary' or direction_type is 'soft_binary':
+        print('hey!')
+        if direction_type is 'soft_binary':
+            b = np.multiply(activation(x, lb, ub, beta, activation_type=activation_type) + 1 / 2 * (lb - ub),
                             binary_indicator)
+            print(b)
             h = - grad_f
         elif direction_type is 'binary':
             b = np.multiply(np.sign(x + 1 / 2 * (lb - ub)), binary_indicator)
+            print(binary_indicator)
+            print(b)
             h = - grad_f
 
         g = - np.multiply(proxy_distance_vector(x, lb, ub, beta, activation_type=activation_type), grad_f)
@@ -215,7 +219,7 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
         g = utils.normalize_array(g)
 
         w = gamma * b + (1 - gamma) * h
-        y = np.max(0, - np.dot(g.T, w) + math.atan(theta) * np.sqrt(np.linalg.norm(w) ** 2 - np.dot(g.T, w) ** 2))
+        y = max(0, - np.dot(g.T, w) + math.atan(theta) * np.sqrt(np.linalg.norm(w) ** 2 - np.dot(g.T, w) ** 2))
 
         direction = w + y * g
 
@@ -353,6 +357,7 @@ def compute_binary_absorption_mask(x, lb, ub, binary_indicator):
     :param binary_indicator:
     :return:
     """
+
     n = np.size(x)
     binary_absorption_mask = np.ones(n)
     for i in range(n):
