@@ -374,10 +374,12 @@ def compute_binary_absorption_mask(x, lb, ub, binary_indicator):
 
 def stopping_criterion_met(x, lb, ub, beta, activation_type, gradf, k, kmax, stopping_criterion_type,
                            precision_stopping_criterion):
-    if stopping_criterion_type is 'gradient' and np.linalg.norm(
+    if k > kmax:
+        return True
+    else:
+        if stopping_criterion_type is 'gradient' and np.linalg.norm(
             np.multiply(gradf, proxy_distance_vector(x, lb, ub, beta,
-                                                     activation_type=activation_type))) < precision_stopping_criterion or k > kmax:
-        return True
-    elif stopping_criterion_type is 'max_iter' and k > kmax:
-        return True
-    return False
+                                                     activation_type=activation_type))) < precision_stopping_criterion:
+            return True
+        else:
+            return False
