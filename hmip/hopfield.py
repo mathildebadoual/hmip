@@ -6,14 +6,18 @@ DEFAULT_ACTIVATION_TYPE = 'sin'
 DEFAULT_INITIAL_ASCENT_TYPE = 'no_ascent'
 DEFAULT_STEP_TYPE = 'classic'
 DEFAULT_DIRECTION_TYPE = 'binary'
+DEFAULT_ABSORPTION = None
+DEFAULT_STOP_ASCENT = 0.1
+DEFAULT_GAMMA = 0.9
+DEFAULT_THETA = 0.1
 
 
 # TODO(Mathilde): find another name fot L and H -> should be lower case
 def hopfield(H, q, lb, ub, binary_indicator,
-             k_max=0, absorption=None, gamma=0.9, theta=0.1,
+             k_max=0, absorption=DEFAULT_ABSORPTION, gamma=DEFAULT_GAMMA, theta=DEFAULT_THETA,
              x_0=None, beta=None, alpha=None,
              step_type=DEFAULT_STEP_TYPE, direction_type=DEFAULT_DIRECTION_TYPE,
-             activation_type=DEFAULT_ACTIVATION_TYPE, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE):
+             activation_type=DEFAULT_ACTIVATION_TYPE, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE, ascent_stop=DEFAULT_STOP_ASCENT):
     """
 
     Solves the following optimization problem by computing the Hopfield method
@@ -64,7 +68,7 @@ def hopfield(H, q, lb, ub, binary_indicator,
 
     smoothness_coef = smoothness_coefficient(H)
 
-    x0 = initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coef, x_0, initial_ascent_type)
+    x0 = initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coef, x_0, initial_ascent_type, ascent_stop)
 
     x[:, 0] = x0
     x_h[:, 0] = inverse_activation(x0, lb, ub, beta, activation_type)
@@ -137,18 +141,18 @@ def absorb_solution_to_limits(x, ub, lb, absorption_val):
 
 
 def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
-                  initial_ascent_type):
+                  initial_ascent_type, ascent_stop):
     if x_0 is None or not utils.is_in_box(x_0, ub, lb):
         # x_0 = lb + (ub - lb) / 2
         x_0 = lb + (ub - lb) / 2
 
     if initial_ascent_type is 'ascent':
         k = 0
-        while k < k_max and utils.is_in_box(x_0, ub - 0.1, lb + 0.1):
+        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop, lb + ascent_stop):
             grad_f = np.dot(H, x_0) + q
             x_0 = x_0 + (1 / smoothness_coeff) * grad_f
             k = k + 1
-        x_0 = activation(x_0, lb + 0.1, ub - 0.1, np.ones(len(x_0)), activation_type='pwl')
+        x_0 = activation(x_0, lb + ascent_stop, ub - ascent_stop, np.ones(len(x_0)), activation_type='pwl')
 
 
     elif initial_ascent_type is 'binary_neutral_ascent':
@@ -157,7 +161,7 @@ def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
             grad_f = np.dot(H, x_0) + q
             x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(len(x_0))-binary_indicator)
             k = k + 1
-        x_0 = activation(x_0, lb + 0.1, ub - 0.1, np.ones(len(x_0)), activation_type='pwl')
+        x_0 = activation(x_0, lb + ascent_stop, ub - ascent_stop, np.ones(len(x_0)), activation_type='pwl')
 
     return x_0
 
