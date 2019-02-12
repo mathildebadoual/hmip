@@ -3,7 +3,7 @@ import hmip.utils as utils
 import math
 
 DEFAULT_ACTIVATION_TYPE = 'sin'
-DEFAULT_INITIAL_ASCENT_TYPE = 'no_ascent'
+DEFAULT_INITIAL_ASCENT_TYPE = 'binary_neutral_ascent'
 DEFAULT_STEP_TYPE = 'classic'
 DEFAULT_DIRECTION_TYPE = 'binary'
 DEFAULT_ABSORPTION = None
@@ -63,6 +63,10 @@ def hopfield(H, q, lb, ub, binary_indicator,
     # check if matrix is symmetric
     H = utils.check_symmetric(H)
 
+    # check if absorption value is strictly larger than ascent stop
+    ascent_stop = utils.check_ascent_stop(ascent_stop,absorption)
+    print(ascent_stop)
+
     if beta is None:
         beta = np.ones(n)
 
@@ -73,8 +77,9 @@ def hopfield(H, q, lb, ub, binary_indicator,
     x[:, 0] = x0
     x_h[:, 0] = inverse_activation(x0, lb, ub, beta, activation_type)
     f_val_hist[0] = objective_function(x[:, 0], H, q)
+    k = 0
 
-    for k in range(k_max - 1):
+    while k in range(k_max - 1):
         # gradient
         grad_f = np.dot(H, x[:, k]) + q
         # direction
@@ -200,16 +205,12 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
     # binary gradient related direction methods
     # TODO(Mathilde): check with paper + Bertrand - change name of variables
     elif direction_type is 'binary' or direction_type is 'soft_binary':
-        print('hey!')
         if direction_type is 'soft_binary':
             b = np.multiply(activation(x, lb, ub, beta, activation_type=activation_type) + 1 / 2 * (lb - ub),
                             binary_indicator)
-            print(b)
             h = - grad_f
         elif direction_type is 'binary':
             b = np.multiply(np.sign(x + 1 / 2 * (lb - ub)), binary_indicator)
-            print(binary_indicator)
-            print(b)
             h = - grad_f
 
         g = - np.multiply(proxy_distance_vector(x, lb, ub, beta, activation_type=activation_type), grad_f)
