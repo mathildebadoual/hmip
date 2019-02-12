@@ -150,3 +150,16 @@ class TestCheckType(unittest.TestCase):
         initial_state = 1
         output = utils.check_type(self.n, initial_state=initial_state)
         self.assertEqual(output, False)
+
+
+class TestCheck(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def test_check_ascent_stop(self):
+        pass
+
+    def test_check_symmetric(self):
+        non_symmetric_matrix = np.array([[1, 0], [0, 1]])
+        self.assertTrue(np.array_equal(utils.make_symmetric(non_symmetric_matrix),
+                                       0.5 * (non_symmetric_matrix + non_symmetric_matrix.T)))

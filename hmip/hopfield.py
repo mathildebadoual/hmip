@@ -2,27 +2,15 @@ import numpy as np
 import hmip.utils as utils
 import math
 
-DEFAULT_ACTIVATION_TYPE = 'sin'
-DEFAULT_INITIAL_ASCENT_TYPE = 'binary_neutral_ascent'
-DEFAULT_STEP_TYPE = 'classic'
-DEFAULT_DIRECTION_TYPE = 'binary'
-DEFAULT_ABSORPTION = None
-DEFAULT_STOP_ASCENT = 0.1
-DEFAULT_GAMMA = 0.9
-DEFAULT_THETA = 0.1
-DEFAULT_STOPPING_CRITERION = 'gradient'
-DEFAULT_PRECISION_STOPPING_CRITERION = 10 ^ -6
-
 
 # TODO(Mathilde): find another name fot L and H -> should be lower case
 def hopfield(H, q, lb, ub, binary_indicator,
-             k_max=None, absorption=DEFAULT_ABSORPTION, gamma=DEFAULT_GAMMA, theta=DEFAULT_THETA,
+             k_max=None, absorption_criterion=None, gamma=0.9, theta=0.1, ascent_stop_criterion=0.1,
+             precision_stopping_criterion=10 ^ -6,
              x_0=None, beta=None, alpha=None,
-             step_type=DEFAULT_STEP_TYPE, direction_type=DEFAULT_DIRECTION_TYPE,
-             activation_type=DEFAULT_ACTIVATION_TYPE, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE,
-             ascent_stop=DEFAULT_STOP_ASCENT,
-             stopping_criterion=DEFAULT_STOPPING_CRITERION,
-             precision_stopping_criterion=DEFAULT_PRECISION_STOPPING_CRITERION):
+             step_type='classic', direction_type='binary',
+             activation_type='sin', initial_ascent_type='binary_neutral_ascent',
+             stopping_criterion_type='gradient'):
     """
 
     Solves the following optimization problem by computing the Hopfield method
@@ -66,30 +54,32 @@ def hopfield(H, q, lb, ub, binary_indicator,
     step_size = np.ones(k_max)
 
     # check if matrix is symmetric
-    H = utils.check_symmetric(H)
+    H = utils.make_symmetric(H)
 
     # check if absorption value is strictly larger than ascent stop
-    ascent_stop = utils.check_ascent_stop(ascent_stop, absorption)
-    print(ascent_stop)
+    ascent_stop_criterion = utils.adapt_ascent_stop_criterion(ascent_stop_criterion, absorption_criterion)
 
     if beta is None:
         beta = np.ones(n)
 
     smoothness_coef = smoothness_coefficient(H)
 
-    x0 = initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coef, x_0, initial_ascent_type, ascent_stop)
+    x0 = initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coef, x_0, initial_ascent_type,
+                       ascent_stop_criterion)
 
     x[:, 0] = x0
     x_h[:, 0] = inverse_activation(x0, lb, ub, beta, activation_type)
     f_val_hist[0] = objective_function(x[:, 0], H, q)
-    stop = 0
     k = 0
+    grad_f = np.dot(H, x[:, k]) + q
 
-    while stop is 0:
+    while stopping_criterion_met(x[:, k], lb, ub, beta, activation_type, grad_f, k, k_max, stopping_criterion_type,
+                                 precision_stopping_criterion):
         # gradient
         grad_f = np.dot(H, x[:, k]) + q
         # direction
-        direction = find_direction(x[:, k], grad_f, lb, ub, binary_indicator, beta, direction_type, absorption, gamma,
+        direction = find_direction(x[:, k], grad_f, lb, ub, binary_indicator, beta, direction_type,
+                                   absorption_criterion, gamma,
                                    theta, activation_type)
         # update hidden values
         # TODO(Mathilde): remove the for loop (more efficient matrix product)
@@ -101,7 +91,6 @@ def hopfield(H, q, lb, ub, binary_indicator,
                 x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta, activation_type)
                 f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
                 alpha = alpha / 2
-            # why this?
             step_size[k] = 2 * alpha
 
         else:
@@ -112,13 +101,10 @@ def hopfield(H, q, lb, ub, binary_indicator,
             step_size[k] = alpha
             f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
 
-        if absorption is not None:
-            x[:, k + 1] = absorb_solution_to_limits(x[:, k + 1], ub, lb, absorption)
+        if absorption_criterion is not None:
+            x[:, k + 1] = absorb_solution_to_limits(x[:, k + 1], ub, lb, absorption_criterion)
 
-        stop = stopping_criterion_met(x[:, k+1], lb, ub, beta, activation_type, grad_f, k, k_max, stopping_criterion,
-                                      precision_stopping_criterion)
-    print('Candidate solution found with a number of iterations:')
-    print(k)
+    print('Candidate solution found with %s number of iterations.' % k)
     return x, x_h, f_val_hist, step_size
 
 
@@ -145,9 +131,9 @@ def objective_function(x, H, q):
     return 1 / 2 * np.dot(np.dot(x.T, H), x) + np.dot(q.T, x)
 
 
-def absorb_solution_to_limits(x, ub, lb, absorption_val):
+def absorb_solution_to_limits(x, ub, lb, absorption_criterion):
     for i in range(len(x)):
-        if min(x[i] - lb[i], ub[i] - x[i]) < absorption_val:
+        if min(x[i] - lb[i], ub[i] - x[i]) < absorption_criterion:
             if x[i] + 1 / 2 * (lb[i] - ub[i]) < 0:
                 x[i] = lb[i]
             else:
@@ -156,18 +142,19 @@ def absorb_solution_to_limits(x, ub, lb, absorption_val):
 
 
 def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
-                  initial_ascent_type, ascent_stop):
+                  initial_ascent_type, ascent_stop_criterion):
     if x_0 is None or not utils.is_in_box(x_0, ub, lb):
         # x_0 = lb + (ub - lb) / 2
         x_0 = lb + (ub - lb) / 2
 
     if initial_ascent_type is 'ascent':
         k = 0
-        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop, lb + ascent_stop):
+        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion):
             grad_f = np.dot(H, x_0) + q
             x_0 = x_0 + (1 / smoothness_coeff) * grad_f
             k = k + 1
-        x_0 = activation(x_0, lb + ascent_stop, ub - ascent_stop, np.ones(len(x_0)), activation_type='pwl')
+        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(len(x_0)),
+                         activation_type='pwl')
 
 
     elif initial_ascent_type is 'binary_neutral_ascent':
@@ -176,12 +163,13 @@ def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
             grad_f = np.dot(H, x_0) + q
             x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(len(x_0)) - binary_indicator)
             k = k + 1
-        x_0 = activation(x_0, lb + ascent_stop, ub - ascent_stop, np.ones(len(x_0)), activation_type='pwl')
+        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(len(x_0)),
+                         activation_type='pwl')
 
     return x_0
 
 
-def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, absorption, gamma, theta,
+def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, absorption_criterion, gamma, theta,
                    activation_type):
     """
 
@@ -191,7 +179,7 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
     :param ub:
     :param binary_indicator:
     :param direction_type:
-    :param absorption:
+    :param absorption_criterion:
     :param gamma:
     :param theta:
     :param beta:
@@ -203,7 +191,7 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
 
     # classic gradient
     if direction_type is 'classic' or direction_type is 'stochastic':
-        if not absorption:
+        if not absorption_criterion:
             direction = - grad_f
         else:
             direction = - np.multiply(binary_absorption_mask, grad_f)
@@ -225,7 +213,7 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
 
         g = - np.multiply(proxy_distance_vector(x, lb, ub, beta, activation_type=activation_type), grad_f)
 
-        if absorption:
+        if absorption_criterion:
             b = np.multiply(binary_absorption_mask, b)
             h = np.multiply(binary_absorption_mask, h)
 
@@ -240,9 +228,9 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
 
     else:
         print('direction type does not exist -> automatically set direction type to pwl')
-        direction = find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type=direction_type,
-                                   absorption=absorption, gamma=gamma, theta=theta,
-                                   activation_type=DEFAULT_ACTIVATION_TYPE)
+        direction = find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type='classic',
+                                   absorption_criterion=absorption_criterion, gamma=gamma, theta=theta,
+                                   activation_type=activation_type)
 
     # normalize
     direction = utils.normalize_array(direction)
@@ -384,12 +372,12 @@ def compute_binary_absorption_mask(x, lb, ub, binary_indicator):
     return binary_absorption_mask
 
 
-def stopping_criterion_met(x, lb, ub, beta, activation_type, gradf, k, kmax, stopping_criterion,
+def stopping_criterion_met(x, lb, ub, beta, activation_type, gradf, k, kmax, stopping_criterion_type,
                            precision_stopping_criterion):
-    stop = 0
-    if stopping_criterion is 'gradient' and np.linalg.norm(
-            np.multiply(gradf, proxy_distance_vector(x, lb, ub, beta, activation_type=activation_type))) < precision_stopping_criterion or k> kmax:
-        stop = 1
-    elif stopping_criterion is 'max_iter' and k > kmax:
-        stop = 1
-    return stop
+    if stopping_criterion_type is 'gradient' and np.linalg.norm(
+            np.multiply(gradf, proxy_distance_vector(x, lb, ub, beta,
+                                                     activation_type=activation_type))) < precision_stopping_criterion or k > kmax:
+        return True
+    elif stopping_criterion_type is 'max_iter' and k > kmax:
+        return True
+    return False

@@ -333,16 +333,25 @@ def check_type(n, H=None, q=None, lb=None, ub=None, binary_indicator=None, L=Non
     return None
 
 
-def check_symmetric(H):
-    if not np.allclose(H, H.T, atol=0):
-        H_new = 0.5 * (H + H.T)
-        print('Specified matrix H was not symmetric, matrix H has been replaced by 0.5(H+H.transpose) ')
-        return H_new
-    else:
-        return H
+def make_symmetric(matrix):
+    """
+    Check if the matrix is symmetric, if no it returns a new symmetric matrix
+    :param matrix: (np.array) size (n, n)
+    :return: (np.array) size (n, n) symmetric
+    """
+    if not np.allclose(matrix, matrix.T, atol=0):
+        matrix = 1/2 * (matrix + matrix.T)
+        print('Specified matrix H was not symmetric, matrix H has been replaced by 1/2 * (matrix + matrix.transpose)')
+    return matrix
 
 
-def check_ascent_stop(ascent_stop, absorption):
+def adapt_ascent_stop_criterion(ascent_stop, absorption):
+    """
+
+    :param ascent_stop:
+    :param absorption:
+    :return:
+    """
     if absorption is not None and ascent_stop is not None and ascent_stop <= absorption:
         ascent_stop = absorption * 2
         print('Choice of initial ascent stopping criterion was smaller than the '
