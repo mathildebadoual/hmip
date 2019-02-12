@@ -340,3 +340,11 @@ def check_symmetric(H):
         return H_new
     else:
         return H
+
+
+def check_ascent_stop(ascent_stop, absorption):
+    if absorption is not None and ascent_stop is not None and ascent_stop <= absorption:
+        ascent_stop = absorption * 2
+        print('Choice of initial ascent stopping criterion was smaller than the '
+              'chosen absorption value, ascent_stop was taken to be absorption * 2')
+    return ascent_stop

@@ -4,14 +4,14 @@ import hmip.hopfield as hop
 import visualizations.utils_visuals as visuals
 
 
-H = np.array([[3.1, 1.9], [1, 1]])
-q = np.array([-1, -0.5])
-k_max = 300
+H = np.array([[2.9, 2.1], [1, 2]])
+q = np.array([-1.4, -0.5])
+k_max = 1000
 binary_indicator = np.array([1, 0])
 ub = np.array([1, 1])
 lb = np.array([0, 0])
 
-x, x_h, f_val_hist, step_size = hop.hopfield(H, q, lb, ub, binary_indicator, k_max=k_max, initial_ascent_type='binary_neutral_ascent')
+x, x_h, f_val_hist, step_size = hop.hopfield(H, q, lb, ub, binary_indicator, k_max=k_max)
 
 visuals.plot_evolution_objective_function_2d(H, q, x, k_max, 'objective_function_2d.png')
 
