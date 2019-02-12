@@ -15,12 +15,10 @@ class TestCvxpy(unittest.TestCase):
 
     def test_cxvpy_solver_default(self):
         x_solution = other_solvers.cvxpy_solver(self.H, self.q, self.lb, self.ub, self.binary_indicator)
-        print(x_solution)
         self.assertTrue(np.allclose(x_solution, np.array([1, 1]), rtol=0.1), 2)
 
     def test_csvxpy_solver_default_comparison(self):
         x_cvxpy = other_solvers.cvxpy_solver(self.H, self.q, self.lb, self.ub, self.binary_indicator)
         x_hopfield, _, _, _ = hop.hopfield(self.H, self.q, self.lb, self.ub, self.binary_indicator,
                                                      k_max=self.k_max)
-        print(np.power(np.isclose(x_cvxpy, x_hopfield[:, -1], rtol=0.1), 2))
         self.assertTrue(np.allclose(x_cvxpy, x_hopfield[:, -1], rtol=0.1), 2)

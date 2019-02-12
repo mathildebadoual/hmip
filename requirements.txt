@@ -5,4 +5,4 @@ scipy
 jupyter
 matplotlib
 sympy
-cvxpy 
+cvxpy

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import hmip.hopfield as hop
-from visualizations.utils_visuals import plot_evolution_objective_function_2d
+import visualizations.utils_visuals as visuals
 
 
 H = np.array([[3.1, 1.9], [1, 1]])
@@ -13,4 +13,6 @@ lb = np.array([0, 0])
 
 x, x_h, f_val_hist, step_size = hop.hopfield(H, q, lb, ub, binary_indicator, k_max=k_max, initial_ascent_type='binary_neutral_ascent')
 
-plot_evolution_objective_function_2d(H, q, x, k_max, 'plots/objective_function_2d.png')
+visuals.plot_evolution_objective_function_2d(H, q, x, k_max, 'objective_function_2d.png')
+
+visuals.plot_value_function(f_val_hist, 'value_function.png')

@@ -29,9 +29,28 @@ def plot_evolution_objective_function_2d(H, q, x, k_max, figure_path):
     plt.plot([1, 1], [1, 0], 'white')
     plt.xlabel('x1')
     plt.ylabel('x2')
-    plt.savefig(figure_path)
+    plt.savefig('plots/' + figure_path)
     plt.show()
 
 
 def objective_function_2d(x_1, x_2, H, q):
+    """
+    This function is the same cost function as in hopfield method but in a more practical form for meshgrid plots
+    :param x_1:
+    :param x_2:
+    :param H:
+    :param q:
+    :return:
+    """
     return 1 / 2 * (H[0, 0] * x_1 ** 2 + H[1, 1] * x_2 ** 2 + 2 * H[0, 1] * x_1 * x_2) + q[0] * x_1 + q[1] * x_2
+
+
+def plot_value_function(f_val_hist, figure_path):
+    plt.plot(f_val_hist)
+    plt.xscale('log')
+    plt.title('Value function for each iteration')
+    plt.xlabel('Iterations (log)')
+    plt.ylabel('Value function')
+    plt.savefig('plots/' + figure_path)
+    plt.grid()
+    plt.show()
