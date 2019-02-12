@@ -10,14 +10,19 @@ DEFAULT_ABSORPTION = None
 DEFAULT_STOP_ASCENT = 0.1
 DEFAULT_GAMMA = 0.9
 DEFAULT_THETA = 0.1
+DEFAULT_STOPPING_CRITERION = 'gradient'
+DEFAULT_PRECISION_STOPPING_CRITERION = 10 ^ -6
 
 
 # TODO(Mathilde): find another name fot L and H -> should be lower case
 def hopfield(H, q, lb, ub, binary_indicator,
-             k_max=0, absorption=DEFAULT_ABSORPTION, gamma=DEFAULT_GAMMA, theta=DEFAULT_THETA,
+             k_max=None, absorption=DEFAULT_ABSORPTION, gamma=DEFAULT_GAMMA, theta=DEFAULT_THETA,
              x_0=None, beta=None, alpha=None,
              step_type=DEFAULT_STEP_TYPE, direction_type=DEFAULT_DIRECTION_TYPE,
-             activation_type=DEFAULT_ACTIVATION_TYPE, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE, ascent_stop=DEFAULT_STOP_ASCENT):
+             activation_type=DEFAULT_ACTIVATION_TYPE, initial_ascent_type=DEFAULT_INITIAL_ASCENT_TYPE,
+             ascent_stop=DEFAULT_STOP_ASCENT,
+             stopping_criterion=DEFAULT_STOPPING_CRITERION,
+             precision_stopping_criterion=DEFAULT_PRECISION_STOPPING_CRITERION):
     """
 
     Solves the following optimization problem by computing the Hopfield method
@@ -64,7 +69,7 @@ def hopfield(H, q, lb, ub, binary_indicator,
     H = utils.check_symmetric(H)
 
     # check if absorption value is strictly larger than ascent stop
-    ascent_stop = utils.check_ascent_stop(ascent_stop,absorption)
+    ascent_stop = utils.check_ascent_stop(ascent_stop, absorption)
     print(ascent_stop)
 
     if beta is None:
@@ -77,9 +82,10 @@ def hopfield(H, q, lb, ub, binary_indicator,
     x[:, 0] = x0
     x_h[:, 0] = inverse_activation(x0, lb, ub, beta, activation_type)
     f_val_hist[0] = objective_function(x[:, 0], H, q)
+    stop = 0
     k = 0
 
-    while k in range(k_max - 1):
+    while stop is 0:
         # gradient
         grad_f = np.dot(H, x[:, k]) + q
         # direction
@@ -109,6 +115,10 @@ def hopfield(H, q, lb, ub, binary_indicator,
         if absorption is not None:
             x[:, k + 1] = absorb_solution_to_limits(x[:, k + 1], ub, lb, absorption)
 
+        stop = stopping_criterion_met(x[:, k+1], lb, ub, beta, activation_type, grad_f, k, k_max, stopping_criterion,
+                                      precision_stopping_criterion)
+    print('Candidate solution found with a number of iterations:')
+    print(k)
     return x, x_h, f_val_hist, step_size
 
 
@@ -164,7 +174,7 @@ def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
         k = 0
         while k < k_max and utils.is_in_box(x_0, ub, lb):
             grad_f = np.dot(H, x_0) + q
-            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(len(x_0))-binary_indicator)
+            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(len(x_0)) - binary_indicator)
             k = k + 1
         x_0 = activation(x_0, lb + ascent_stop, ub - ascent_stop, np.ones(len(x_0)), activation_type='pwl')
 
@@ -252,7 +262,9 @@ def proxy_distance_vector(x, lb, ub, beta, activation_type):
     :return:
     """
 
-    z = np.divide((x - lb), (ub - lb))
+    # TODO(BERTRAND): Check and rectify that function
+    # z = np.divide((x - lb), (ub - lb))
+    z = x
     if activation_type == 'pwl':
         return utils.proxy_distance_vector_pwl(z, beta)
     if activation_type == 'exp':
@@ -370,3 +382,14 @@ def compute_binary_absorption_mask(x, lb, ub, binary_indicator):
             if x[i] == ub[i] or x[i] == lb[i]:
                 binary_absorption_mask[i] = 0
     return binary_absorption_mask
+
+
+def stopping_criterion_met(x, lb, ub, beta, activation_type, gradf, k, kmax, stopping_criterion,
+                           precision_stopping_criterion):
+    stop = 0
+    if stopping_criterion is 'gradient' and np.linalg.norm(
+            np.multiply(gradf, proxy_distance_vector(x, lb, ub, beta, activation_type=activation_type))) < precision_stopping_criterion or k> kmax:
+        stop = 1
+    elif stopping_criterion is 'max_iter' and k > kmax:
+        stop = 1
+    return stop
