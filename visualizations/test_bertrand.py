@@ -6,8 +6,8 @@ import visualizations.utils_visuals as visuals
 
 H = np.array([[3.1, 1.9], [1, 1]])
 q = np.array([-1, -0.5])
-k_max = 500
-binary_indicator = np.array([0, 1])
+k_max = 300
+binary_indicator = np.array([1, 0])
 ub = np.array([1, 1])
 lb = np.array([0, 0])
 
