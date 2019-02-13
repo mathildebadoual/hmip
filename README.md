@@ -18,7 +18,7 @@ pip install hmip
 import hmip
 ```
 
-For examples of how to use the module, run the jupyter notebook /visualizations/examples.ipynb amd read the [Wiki](https://github.com/mathildebadoual/hmip/wiki).
+For examples of how to use the module, run the jupyter notebook /notebooks_examples/examples.ipynb amd read the [Wiki](https://github.com/mathildebadoual/hmip/wiki).
 
 # Contacts:
 
