@@ -11,7 +11,7 @@ class TestCvxpy(unittest.TestCase):
         self.binary_indicator = np.array([0, 1])
         self.ub = np.array([1, 1])
         self.lb = np.array([0, 0])
-        self.k_max = 20
+        self.k_max = 200
 
     def test_cxvpy_solver_default(self):
         x_solution = other_solvers.cvxpy_solver(self.H, self.q, self.lb, self.ub, self.binary_indicator)
