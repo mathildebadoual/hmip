@@ -1,9 +1,8 @@
 nose
 coverage
-cython
 cvxpy
 scipy
 jupyter
 matplotlib
 sympy
-numpy
+numpy >= 1.14
