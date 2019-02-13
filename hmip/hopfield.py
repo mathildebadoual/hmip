@@ -73,7 +73,7 @@ def hopfield(H, q, lb, ub, binary_indicator,
     k = 0
     grad_f = np.dot(H, x[:, k]) + q
 
-    while stopping_criterion_met(x[:, k], lb, ub, beta, activation_type, grad_f, k, k_max, stopping_criterion_type,
+    while not stopping_criterion_met(x[:, k], lb, ub, beta, activation_type, grad_f, k, k_max, stopping_criterion_type,
                                  precision_stopping_criterion):
         # gradient
         grad_f = np.dot(H, x[:, k]) + q
@@ -103,6 +103,8 @@ def hopfield(H, q, lb, ub, binary_indicator,
 
         if absorption_criterion is not None:
             x[:, k + 1] = absorb_solution_to_limits(x[:, k + 1], ub, lb, absorption_criterion)
+
+        k += 1
 
     print('Candidate solution found with %s number of iterations.' % k)
     return x, x_h, f_val_hist, step_size
@@ -374,7 +376,7 @@ def compute_binary_absorption_mask(x, lb, ub, binary_indicator):
 
 def stopping_criterion_met(x, lb, ub, beta, activation_type, gradf, k, kmax, stopping_criterion_type,
                            precision_stopping_criterion):
-    if k > kmax:
+    if k >= kmax - 1:
         return True
     else:
         if stopping_criterion_type is 'gradient' and np.linalg.norm(

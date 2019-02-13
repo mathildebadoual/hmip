@@ -347,7 +347,6 @@ def make_symmetric(matrix):
 
 def adapt_ascent_stop_criterion(ascent_stop, absorption):
     """
-
     :param ascent_stop:
     :param absorption:
     :return:
