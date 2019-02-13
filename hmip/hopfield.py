@@ -56,6 +56,10 @@ def hopfield(H, q, lb, ub, binary_indicator,
     # check if matrix is symmetric
     H = utils.make_symmetric(H)
 
+    # Assess convexity of matrix H
+    convexity = utils.assess_convexity_of_objective(H)
+    print(convexity)
+
     # check if absorption value is strictly larger than ascent stop
     ascent_stop_criterion = utils.adapt_ascent_stop_criterion(ascent_stop_criterion, absorption_criterion)
 
@@ -116,7 +120,7 @@ def smoothness_coefficient(H):
     :param H: (np.array) matrix of size (n, n), quadratic term of the problem
     :return: (np.float) scalar, smoothness coefficient
     """
-    return np.max(np.linalg.eigvals(H))
+    return np.absolute(np.max(np.linalg.eigvals(H)))
 
 
 def objective_function(x, H, q):
