@@ -58,7 +58,6 @@ def hopfield(H, q, lb, ub, binary_indicator,
 
     # Assess convexity of matrix H
     convexity = utils.assess_convexity_of_objective(H)
-    print(convexity)
 
     # check if absorption value is strictly larger than ascent stop
     ascent_stop_criterion = utils.adapt_ascent_stop_criterion(ascent_stop_criterion, absorption_criterion)
@@ -78,9 +77,15 @@ def hopfield(H, q, lb, ub, binary_indicator,
     grad_f = np.dot(H, x[:, k]) + q
 
     while not stopping_criterion_met(x[:, k], lb, ub, beta, activation_type, grad_f, k, k_max, stopping_criterion_type,
-                                 precision_stopping_criterion):
+                                     precision_stopping_criterion):
         # gradient
         grad_f = np.dot(H, x[:, k]) + q
+
+        # Make sure initial point is not stuck at gradient=0 at the initial point
+        if k is 0 and np.linalg.norm(grad_f) == 0:
+            grad_f = (smoothness_coef/10)*(np.random.rand(n)-0.5)
+            print(grad_f)
+
         # direction
         direction = find_direction(x[:, k], grad_f, lb, ub, binary_indicator, beta, direction_type,
                                    absorption_criterion, gamma,
@@ -152,10 +157,12 @@ def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
     if x_0 is None or not utils.is_in_box(x_0, ub, lb):
         # x_0 = lb + (ub - lb) / 2
         x_0 = lb + (ub - lb) / 2
+        grad_f = 1;
 
     if initial_ascent_type is 'ascent':
         k = 0
-        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion):
+        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion) \
+                and np.linalg.norm(grad_f) > 10 ^ -6:
             grad_f = np.dot(H, x_0) + q
             x_0 = x_0 + (1 / smoothness_coeff) * grad_f
             k = k + 1
@@ -165,7 +172,7 @@ def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
 
     elif initial_ascent_type is 'binary_neutral_ascent':
         k = 0
-        while k < k_max and utils.is_in_box(x_0, ub, lb):
+        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion) and np.linalg.norm(grad_f) > 10 ^ -6:
             grad_f = np.dot(H, x_0) + q
             x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(len(x_0)) - binary_indicator)
             k = k + 1
@@ -384,8 +391,8 @@ def stopping_criterion_met(x, lb, ub, beta, activation_type, gradf, k, kmax, sto
         return True
     else:
         if stopping_criterion_type is 'gradient' and np.linalg.norm(
-            np.multiply(gradf, proxy_distance_vector(x, lb, ub, beta,
-                                                     activation_type=activation_type))) < precision_stopping_criterion:
+                np.multiply(gradf, proxy_distance_vector(x, lb, ub, beta,
+                                                         activation_type=activation_type))) < precision_stopping_criterion:
             return True
         else:
             return False
