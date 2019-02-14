@@ -157,26 +157,34 @@ def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
     if x_0 is None or not utils.is_in_box(x_0, ub, lb):
         # x_0 = lb + (ub - lb) / 2
         x_0 = lb + (ub - lb) / 2
-        grad_f = 1;
+        n = len(x_0)
+        grad_f = 1
 
     if initial_ascent_type is 'ascent':
         k = 0
         while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion) \
                 and np.linalg.norm(grad_f) > 10 ^ -6:
             grad_f = np.dot(H, x_0) + q
+            # Make sure initial point is not stuck at gradient=0 at the initial point
+            if k is 0 and np.linalg.norm(grad_f) == 0:
+                grad_f = (smoothness_coeff / 10) * (np.random.rand(n) - 0.5)
             x_0 = x_0 + (1 / smoothness_coeff) * grad_f
             k = k + 1
-        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(len(x_0)),
+        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(n),
                          activation_type='pwl')
 
 
     elif initial_ascent_type is 'binary_neutral_ascent':
         k = 0
-        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion) and np.linalg.norm(grad_f) > 10 ^ -6:
+        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion) \
+                and np.linalg.norm(grad_f) > 10 ^ -6:
             grad_f = np.dot(H, x_0) + q
-            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(len(x_0)) - binary_indicator)
+            # Make sure initial point is not stuck at gradient=0 at the initial point
+            if k is 0 and np.linalg.norm(grad_f) == 0:
+                grad_f = (smoothness_coeff / 10) * (np.random.rand(n) - 0.5)
+            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(n) - binary_indicator)
             k = k + 1
-        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(len(x_0)),
+        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(n),
                          activation_type='pwl')
 
     return x_0

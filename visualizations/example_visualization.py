@@ -4,8 +4,8 @@ import hmip.hopfield as hop
 import visualizations.utils_visuals as visuals
 
 
-H = np.array([[-2, 0], [0, -2]])
-q = np.array([1, 1])
+H = np.array([[2, 0.1], [0, 2]])
+q = np.array([-1, -1])
 k_max = 1000
 binary_indicator = np.array([1, 0])
 ub = np.array([1, 1])
