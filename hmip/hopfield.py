@@ -259,32 +259,6 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
     return direction
 
 
-def proxy_distance_vector(x, lb, ub, beta, activation_type):
-    """
-    Compute the binary proxy distance sigma'(sigma^(-1)(x))
-
-    :param x:
-    :param lb:
-    :param ub:
-    :param beta:
-    :param activation_type:
-    :return:
-    """
-
-    # TODO(BERTRAND): Check and rectify that function
-    # z = np.divide((x - lb), (ub - lb))
-    z = x
-    if activation_type == 'pwl':
-        return utils.proxy_distance_vector_pwl(z, beta)
-    if activation_type == 'exp':
-        return utils.proxy_distance_vector_exp(z, beta)
-    if activation_type == 'sin':
-        return utils.proxy_distance_vector_sin(z, beta)
-    if activation_type == 'identity':
-        return utils.proxy_distance_vector_pwl(z, beta)
-    if activation_type == 'tanh':
-        return utils.proxy_distance_vector_tanh(z, beta)
-
 
 # TODO(Mathilde): remove the integers without justification
 
@@ -363,15 +337,42 @@ def inverse_activation(x, lb, ub, beta, activation_type):
     """
     z = np.divide((x - lb), (ub - lb))
     if activation_type is 'pwl':
-        return utils.inverse_activation_pwl(z, beta)
+        return lb+np.multiply(ub-lb, utils.inverse_activation_pwl(z, beta))
     if activation_type is 'exp':
-        return utils.inverse_activation_exp(z, beta)
+        return lb+np.multiply(ub-lb, utils.inverse_activation_exp(z, beta))
     if activation_type is 'sin':
-        return utils.inverse_activation_sin(z, beta)
+        return lb+np.multiply(ub-lb, utils.inverse_activation_sin(z, beta))
     if activation_type is 'identity':
-        return utils.inverse_activation_pwl(z, beta)
+        return lb+np.multiply(ub-lb, utils.inverse_activation_pwl(z, beta))
     if activation_type is 'tanh':
-        return utils.inverse_activation_tanh(z, beta)
+        return lb+np.multiply(ub-lb, utils.inverse_activation_tanh(z, beta))
+
+
+def proxy_distance_vector(x, lb, ub, beta, activation_type):
+    """
+    Compute the binary proxy distance sigma'(sigma^(-1)(x))
+
+    :param x:
+    :param lb:
+    :param ub:
+    :param beta:
+    :param activation_type:
+    :return:
+    """
+
+    # TODO(BERTRAND): Check and rectify that function
+    z = np.divide((x - lb), (ub - lb))
+
+    if activation_type == 'pwl':
+        return utils.proxy_distance_vector_pwl(z, beta)
+    if activation_type == 'exp':
+        return utils.proxy_distance_vector_exp(z, beta)
+    if activation_type == 'sin':
+        return utils.proxy_distance_vector_sin(z, beta)
+    if activation_type == 'identity':
+        return utils.proxy_distance_vector_pwl(z, beta)
+    if activation_type == 'tanh':
+        return utils.proxy_distance_vector_tanh(z, beta)
 
 
 def compute_binary_absorption_mask(x, lb, ub, binary_indicator):

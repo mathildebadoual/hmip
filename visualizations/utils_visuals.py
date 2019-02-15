@@ -3,7 +3,7 @@ import matplotlib.patches as patches
 import numpy as np
 
 
-def plot_evolution_objective_function_2d(H, q, x, k_max, figure_path):
+def plot_evolution_objective_function_2d(H, q, x, lb, ub, k_max, figure_path):
     """
     Plot the evolution of the objective function for 2d variables at the different steps of the execution of hopfield()
     :param H: (np.array) size (n, n) from the problem formulation - quadratic parameter
@@ -12,8 +12,8 @@ def plot_evolution_objective_function_2d(H, q, x, k_max, figure_path):
     :param figure_path: (string) path where to solve the function
     :return: plot a function and save it in the path
     """
-    x_1 = np.linspace(-0.1, 1.1, num=500).reshape((1, -1))
-    x_2 = np.linspace(-0.1, 1.1, num=500).reshape((1, -1))
+    x_1 = np.linspace(-0.1+lb[0], ub[0]+0.1, num=500).reshape((1, -1))
+    x_2 = np.linspace(-0.1+lb[1], ub[1]+0.1, num=500).reshape((1, -1))
     x_meshgrid_1, x_meshgrid_2 = np.meshgrid(x_1, x_2)
 
     objective = objective_function_2d(x_meshgrid_1, x_meshgrid_2, H, q)
@@ -23,10 +23,6 @@ def plot_evolution_objective_function_2d(H, q, x, k_max, figure_path):
     plt.plot(x[0, :], x[1, :], 'black')
     plt.plot(x[0, 0], x[1, 0],  'bo', markersize=6, color='white')
     plt.plot(x[0, k_max-1], x[1, k_max-1], 'x',  markersize=10, color='white')
-    plt.plot([0, 0], [1, 0], 'white')
-    plt.plot([0, 1], [0, 0], 'white')
-    plt.plot([0, 1], [1, 1], 'white')
-    plt.plot([1, 1], [1, 0], 'white')
     plt.xlabel('x1')
     plt.ylabel('x2')
     plt.savefig('plots/' + figure_path)
