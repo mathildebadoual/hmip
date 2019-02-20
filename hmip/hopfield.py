@@ -6,9 +6,9 @@ import math
 # TODO(Mathilde): find another name fot L and H -> should be lower case
 def hopfield(H, q, lb, ub, binary_indicator,
              k_max=None, absorption_criterion=None, gamma=0.9, theta=0.1, ascent_stop_criterion=0.1,
-             precision_stopping_criterion=10 ^ -6,
+             precision_stopping_criterion=10 ** -6,
              x_0=None, beta=None, alpha=None,
-             step_type='classic', direction_type='binary',
+             step_type='classic', direction_type='soft_binary',
              activation_type='sin', initial_ascent_type='binary_neutral_ascent',
              stopping_criterion_type='gradient'):
     """
@@ -56,6 +56,9 @@ def hopfield(H, q, lb, ub, binary_indicator,
     # check if matrix is symmetric
     H = utils.make_symmetric(H)
 
+    # Assess convexity of matrix H
+    # convexity = utils.assess_convexity_of_objective(H)
+
     # check if absorption value is strictly larger than ascent stop
     ascent_stop_criterion = utils.adapt_ascent_stop_criterion(ascent_stop_criterion, absorption_criterion)
 
@@ -74,15 +77,26 @@ def hopfield(H, q, lb, ub, binary_indicator,
     grad_f = np.dot(H, x[:, k]) + q
 
     while not stopping_criterion_met(x[:, k], lb, ub, beta, activation_type, grad_f, k, k_max, stopping_criterion_type,
-                                 precision_stopping_criterion):
+                                     precision_stopping_criterion):
+
+        # Assess convergence indicator for binary constrained components
+        convergence_to_binary = np.linalg.norm(
+            np.multiply(proxy_distance_vector(x[:, k], lb, ub, beta, activation_type), binary_indicator))
+
         # gradient
         grad_f = np.dot(H, x[:, k]) + q
+
+        # Make sure initial point is not stuck at gradient=0 at the initial point
+        if k is 0 and np.linalg.norm(grad_f) == 0:
+            grad_f = (smoothness_coef / 10) * (np.random.rand(n) - 0.5)
+
         # direction
         direction = find_direction(x[:, k], grad_f, lb, ub, binary_indicator, beta, direction_type,
                                    absorption_criterion, gamma,
-                                   theta, activation_type)
+                                   theta, activation_type, convergence_to_binary)
         # update hidden values
         # TODO(Mathilde): remove the for loop (more efficient matrix product)
+
         if step_type == 'armijo':
             alpha = np.divide(np.linalg.norm(grad_f), smoothness_coef)
             f_val_hist[k + 1] = f_val_hist[k] + 1
@@ -116,7 +130,7 @@ def smoothness_coefficient(H):
     :param H: (np.array) matrix of size (n, n), quadratic term of the problem
     :return: (np.float) scalar, smoothness coefficient
     """
-    return np.max(np.linalg.eigvals(H))
+    return np.absolute(np.max(np.linalg.eigvals(H)))
 
 
 def objective_function(x, H, q):
@@ -148,31 +162,41 @@ def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
     if x_0 is None or not utils.is_in_box(x_0, ub, lb):
         # x_0 = lb + (ub - lb) / 2
         x_0 = lb + (ub - lb) / 2
+        n = len(x_0)
+        grad_f = 1
 
     if initial_ascent_type is 'ascent':
         k = 0
-        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion):
+        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion) \
+                and np.linalg.norm(grad_f) > (10 ** -6) * (1 / n):
             grad_f = np.dot(H, x_0) + q
+            # Make sure initial point is not stuck at gradient=0 at the initial point
+            if k is 0 and np.linalg.norm(grad_f) == 0:
+                grad_f = (smoothness_coeff / 10) * (np.random.rand(n) - 0.5)
             x_0 = x_0 + (1 / smoothness_coeff) * grad_f
             k = k + 1
-        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(len(x_0)),
+        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(n),
                          activation_type='pwl')
 
 
     elif initial_ascent_type is 'binary_neutral_ascent':
         k = 0
-        while k < k_max and utils.is_in_box(x_0, ub, lb):
+        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion) \
+                and np.linalg.norm(grad_f) > (10 ** -6) * (1 / n):
             grad_f = np.dot(H, x_0) + q
-            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(len(x_0)) - binary_indicator)
+            # Make sure initial point is not stuck at gradient=0 at the initial point
+            if k is 0 and np.linalg.norm(grad_f) == 0:
+                grad_f = (smoothness_coeff / 10) * (np.random.rand(n) - 0.5)
+            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(n) - binary_indicator)
             k = k + 1
-        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(len(x_0)),
+        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(n),
                          activation_type='pwl')
 
     return x_0
 
 
 def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, absorption_criterion, gamma, theta,
-                   activation_type):
+                   activation_type, convergence_to_binary):
     """
 
     :param x:
@@ -191,8 +215,9 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
     n = np.size(x)
     binary_absorption_mask = compute_binary_absorption_mask(x, lb, ub, binary_indicator)
 
+
     # classic gradient
-    if direction_type is 'classic' or direction_type is 'stochastic':
+    if direction_type is 'classic' or direction_type is 'stochastic' or convergence_to_binary < (1/n)*(10 ** -6):
         if not absorption_criterion:
             direction = - grad_f
         else:
@@ -204,7 +229,7 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
 
     # binary gradient related direction methods
     # TODO(Mathilde): check with paper + Bertrand - change name of variables
-    elif direction_type is 'binary' or direction_type is 'soft_binary':
+    elif (direction_type is 'binary' or direction_type is 'soft_binary') and convergence_to_binary >= (1/n)*(10 ** -6):
         if direction_type is 'soft_binary':
             b = np.multiply(activation(x, lb, ub, beta, activation_type=activation_type) + 1 / 2 * (lb - ub),
                             binary_indicator)
@@ -238,33 +263,6 @@ def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, ab
     direction = utils.normalize_array(direction)
 
     return direction
-
-
-def proxy_distance_vector(x, lb, ub, beta, activation_type):
-    """
-    Compute the binary proxy distance sigma'(sigma^(-1)(x))
-
-    :param x:
-    :param lb:
-    :param ub:
-    :param beta:
-    :param activation_type:
-    :return:
-    """
-
-    # TODO(BERTRAND): Check and rectify that function
-    # z = np.divide((x - lb), (ub - lb))
-    z = x
-    if activation_type == 'pwl':
-        return utils.proxy_distance_vector_pwl(z, beta)
-    if activation_type == 'exp':
-        return utils.proxy_distance_vector_exp(z, beta)
-    if activation_type == 'sin':
-        return utils.proxy_distance_vector_sin(z, beta)
-    if activation_type == 'identity':
-        return utils.proxy_distance_vector_pwl(z, beta)
-    if activation_type == 'tanh':
-        return utils.proxy_distance_vector_tanh(z, beta)
 
 
 # TODO(Mathilde): remove the integers without justification
@@ -344,15 +342,42 @@ def inverse_activation(x, lb, ub, beta, activation_type):
     """
     z = np.divide((x - lb), (ub - lb))
     if activation_type is 'pwl':
-        return utils.inverse_activation_pwl(z, beta)
+        return lb + np.multiply(ub - lb, utils.inverse_activation_pwl(z, beta))
     if activation_type is 'exp':
-        return utils.inverse_activation_exp(z, beta)
+        return lb + np.multiply(ub - lb, utils.inverse_activation_exp(z, beta))
     if activation_type is 'sin':
-        return utils.inverse_activation_sin(z, beta)
+        return lb + np.multiply(ub - lb, utils.inverse_activation_sin(z, beta))
     if activation_type is 'identity':
-        return utils.inverse_activation_pwl(z, beta)
+        return lb + np.multiply(ub - lb, utils.inverse_activation_pwl(z, beta))
     if activation_type is 'tanh':
-        return utils.inverse_activation_tanh(z, beta)
+        return lb + np.multiply(ub - lb, utils.inverse_activation_tanh(z, beta))
+
+
+def proxy_distance_vector(x, lb, ub, beta, activation_type):
+    """
+    Compute the binary proxy distance sigma'(sigma^(-1)(x))
+
+    :param x:
+    :param lb:
+    :param ub:
+    :param beta:
+    :param activation_type:
+    :return:
+    """
+
+    # TODO(BERTRAND): Check and rectify that function
+    z = np.divide((x - lb), (ub - lb))
+
+    if activation_type == 'pwl':
+        return utils.proxy_distance_vector_pwl(z, beta)
+    if activation_type == 'exp':
+        return utils.proxy_distance_vector_exp(z, beta)
+    if activation_type == 'sin':
+        return utils.proxy_distance_vector_sin(z, beta)
+    if activation_type == 'identity':
+        return utils.proxy_distance_vector_pwl(z, beta)
+    if activation_type == 'tanh':
+        return utils.proxy_distance_vector_tanh(z, beta)
 
 
 def compute_binary_absorption_mask(x, lb, ub, binary_indicator):
@@ -380,8 +405,8 @@ def stopping_criterion_met(x, lb, ub, beta, activation_type, gradf, k, kmax, sto
         return True
     else:
         if stopping_criterion_type is 'gradient' and np.linalg.norm(
-            np.multiply(gradf, proxy_distance_vector(x, lb, ub, beta,
-                                                     activation_type=activation_type))) < precision_stopping_criterion:
+                np.multiply(gradf, proxy_distance_vector(x, lb, ub, beta,
+                                                         activation_type=activation_type))) < precision_stopping_criterion:
             return True
         else:
             return False

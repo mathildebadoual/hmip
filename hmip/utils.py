@@ -340,7 +340,7 @@ def make_symmetric(matrix):
     :return: (np.array) size (n, n) symmetric
     """
     if not np.allclose(matrix, matrix.T, atol=0):
-        matrix = 1/2 * (matrix + matrix.T)
+        matrix = 1 / 2 * (matrix + matrix.T)
         print('Specified matrix H was not symmetric, matrix H has been replaced by 1/2 * (matrix + matrix.transpose)')
     return matrix
 
@@ -356,3 +356,14 @@ def adapt_ascent_stop_criterion(ascent_stop, absorption):
         print('Choice of initial ascent stopping criterion was smaller than the '
               'chosen absorption value, ascent_stop was taken to be absorption * 2')
     return ascent_stop
+
+
+def assess_convexity_of_objective(H):
+    """
+    :return: False if not convex, true if convex
+    """
+    m = min(np.linalg.eigvals(H))
+    if m < 0:
+        return False
+    else:
+        return True
