@@ -4,12 +4,12 @@ import math
 
 
 class HopfieldSolver():
-    def __init__(self, activation_function=utils.activation_pwl,
-                 inverse_activation_function=utils.inverse_activation_pwl,
-                 proxy_distance_vector=utils.proxy_distance_vector_pwl,
-                 gamma=0.9, theta=0.1, ascent_stop_criterion=0.001, absorption_criterion=0.001, max_iterations=100,
-                 stopping_criterion_type='gradient', direction_type='classic', step_type='classic',
-                 initial_ascent_type='ascent', precision_stopping_criterion=10 ** -6):
+    def __init__(self, activation_function=utils.activation_sin,
+                 inverse_activation_function=utils.inverse_activation_sin,
+                 proxy_distance_vector=utils.proxy_distance_vector_sin,
+                 gamma=0.95, theta=0.05, ascent_stop_criterion=0.06, absorption_criterion=0.05, max_iterations=100,
+                 stopping_criterion_type='gradient', direction_type='soft_binary', step_type='classic',
+                 initial_ascent_type='binary_neutral_ascent', precision_stopping_criterion=10 ** -6):
 
         self.activation_function = activation_function
         self.inverse_activation_function = inverse_activation_function
@@ -60,10 +60,8 @@ class HopfieldSolver():
         k = 0
 
         while not self._stopping_criterion_met(x[:, k], grad_f, k):
-            convergence_to_binary = np.linalg.norm(
-                np.multiply(self._proxy_distance_vector(x[:, k]), self.problem['binary_indicator']))
 
-            direction = self._find_direction(x[:, k], grad_f, convergence_to_binary)
+            direction = self._find_direction(x[:, k], grad_f)
             # TODO(Mathilde): remove the for loop (more efficient matrix product)
 
             if self.step_type == 'armijo':
@@ -152,16 +150,16 @@ class HopfieldSolver():
             else:
                 return False
 
-    def _find_direction(self, x, grad_f, convergence_to_binary):
+    def _find_direction(self, x, grad_f):
         if self.problem is None:
             raise Exception('Problem is not set')
         # TODO(Mathilde): Here sometimes there is no solution
         n = np.size(x)
         binary_absorption_mask = self._compute_binary_absorption_mask(x)
 
+
         # classic gradient
-        if self.direction_type is 'classic' or self.direction_type is 'stochastic' or convergence_to_binary < (
-                1 / n) * (10 ** -6):
+        if self.direction_type is 'classic' or self.direction_type is 'stochastic':
             if self.absorption_criterion is not None:
                 direction = - grad_f
             else:
@@ -171,9 +169,7 @@ class HopfieldSolver():
                 # TODO(Mathilde): make 0.3 as a parameter
                 direction = - np.multiply(direction, (np.random.uniform(0, 1, n) - 0.3))
 
-        elif (self.direction_type is 'binary' or self.direction_type is 'soft_binary') or convergence_to_binary >= (
-                1 / n) * (
-                10 ** -6):
+        elif (self.direction_type is 'binary' or self.direction_type is 'soft_binary'):
             if self.direction_type is 'soft_binary':
                 b = np.multiply(
                     self._activation(x, self.problem['ub'], self.problem['lb']) + 1 / 2 * (
@@ -196,7 +192,8 @@ class HopfieldSolver():
             g = utils.normalize_array(g)
             w = self.gamma * b + (1 - self.gamma) * h
             y = max(0, - np.dot(g.T, w) + math.atan(self.theta) * np.sqrt(np.linalg.norm(w) ** 2 - np.dot(g.T, w) ** 2))
-            direction = w + y * g
+            direction = np.multiply(w + y * g , binary_absorption_mask)
+
         else:
             raise Exception('Direction Type does not exist!')
 
