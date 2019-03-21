@@ -49,7 +49,11 @@ def proxy_distance_vector_sin(x, beta):
     :param beta: (np.array) size of x, parameter of the function
     :return:
     """
-    print(x)
+    # TODO(Bertrand): check
+    if np.isnan(x).any():
+        return x
+    if np.less_equal((1 - x), 0).any():
+        x = x - 0.001 * np.ones(len(x))
     sin = 2 * np.multiply(np.multiply(beta, np.sqrt(x)), np.sqrt(1 - x))
     return sin
 
@@ -181,7 +185,9 @@ def inverse_activation_tanh(x, beta):
     :param beta: (np.array) size of x, parameter of the function
     :return:
     """
-    tanh = 2 * np.multiply(np.linalg.inv(beta), np.arctanh(2 * x - 1)) + 1 / 2
+
+    print(2 * x - 1)
+    tanh = np.divide(np.arctanh(2 * x - 1), 2 * beta) + 1 / 2
     return tanh
 
 

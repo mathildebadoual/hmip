@@ -29,8 +29,8 @@ class TestHopfield(unittest.TestCase):
     def test_hopfield_default(self):
         solver = HopfieldSolver(max_iterations=self.k_max)
         solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                               self.binary_indicator,
-                                               smoothness_coef=self.smoothness_coefficient)
+                                          self.binary_indicator,
+                                          smoothness_coef=self.smoothness_coefficient)
         x, x_h, f_val_hist, step_size = solver.solve_optimization_problem()
         self.assertEqual(x.shape[0], self.q.shape[0])
         self.assertEqual(x.shape[1], self.k_max)
@@ -63,55 +63,85 @@ class TestHopfield(unittest.TestCase):
         self.assertEqual(x.shape[1], self.k_max)
 
 
-# class TestOthers(unittest.TestCase):
-#     def setUp(self):
-#         self.n = 2
-#         self.H = np.array([[2, 0], [0, 1]])
-#         self.q = np.array([-2.7, -1.8])
-#         self.k_max = 20
-#         self.binary_indicator = np.array([0, 1])
-#         self.beta = np.ones(2)
-#         self.ub = np.array([1, 1])
-#         self.lb = np.array([0, 0])
-#         self.x = np.ones((self.n, self.k_max))
-#         self.x_0 = self.lb + (self.ub - self.lb) / 2
-#         self.smoothness_coef = np.max(np.linalg.eigvals(self.H))
-#         self.ascent_stop_criterion = 0.1
-#
-#     def test_create_initial_ascent_ascent(self):
-#         self.assertEqual(self.x_0.shape[0], hop.initial_state(self.H, self.q, self.lb, self.ub, self.binary_indicator,
-#                                                               self.k_max, self.smoothness_coef, self.x_0,
-#                                                               'ascent', self.ascent_stop_criterion).shape[0])
-#
-#     def test_create_initial_ascent_binary_neutral_ascent(self):
-#         self.assertEqual(self.x_0.shape[0], hop.initial_state(self.H, self.q, self.lb, self.ub, self.binary_indicator,
-#                                                               self.k_max, self.smoothness_coef, self.x_0,
-#                                                               'binary_neutral_ascent',
-#                                                               self.ascent_stop_criterion).shape[0])
-#
-#     def test_compute_inverse_activation(self):
-#         activation_type = ['pwl', 'exp', 'sin', 'identity', 'tanh']
-#
-#         x_0 = self.lb + (self.ub - self.lb) / 2
-#         beta = 0.5 * x_0
-#
-#         for i in activation_type:
-#             if i is 'tanh':
-#                 beta = [[1, 0], [0, 1]]
-#                 self.assertTrue(np.array_equal(x_0, hop.inverse_activation(x_0, self.lb, self.ub, beta, i)[0]))
-#             else:
-#                 self.assertTrue(np.array_equal(x_0, hop.inverse_activation(x_0, self.lb, self.ub, beta, i)))
-#
-#     def test_compute_activation(self):
-#         activation_type = ['pwl', 'exp', 'sin', 'identity', 'tanh']
-#         solution = [[1, 1], [0.81606028, 0.81606028], [0.92073549, 0.92073549], [1., 1.], [0.88079708, 0.88079708]]
-#
-#         x_0 = np.ones(self.n)
-#
-#         for i in range(len(activation_type)):
-#             self.assertTrue(np.array_equal(
-#                 np.round(hop.activation(x_0, self.lb, self.ub, self.beta, activation_type[i]), decimals=8),
-#                 solution[i]))
+class TestOthers(unittest.TestCase):
+    def setUp(self):
+        self.H = np.array([[2, 0], [0, 1]])
+        self.q = np.array([-2.7, -1.8])
+        self.k_max = 20
+        self.binary_indicator = np.array([0, 1])
+        self.beta = 1
+        self.ub = np.array([1, 1])
+        self.lb = np.array([0, 0])
+        self.absorption = 1
+        self.step_type = 'classic'
+        self.x_0 = self.lb + (self.ub - self.lb) / 2
+        self.objective_function = lambda x: 1 / 2 * np.dot(np.dot(x.T, self.H), x) + np.dot(self.q.T, x)
+        self.gradient = lambda x: np.dot(self.H, x) + self.q
+        self.smoothness_coefficient = utils.smoothness_coefficient(self.H)
+        self.n = 2
+        self.x = np.ones((self.n, self.k_max))
+
+        self.ascent_stop_criterion = 0.1
+
+    def test_create_initial_ascent_ascent(self):
+        solver = HopfieldSolver(max_iterations=self.k_max)
+        solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
+                                          self.binary_indicator,
+                                          smoothness_coef=self.smoothness_coefficient)
+        self.assertTrue(np.array_equal(self.x_0.shape, solver._compute_x_0(self.x_0).shape))
+
+    def test_create_initial_ascent_binary_neutral_ascent(self):
+        solver = HopfieldSolver(max_iterations=self.k_max, initial_ascent_type='binary_neutral_ascent')
+        solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
+                                          self.binary_indicator,
+                                          smoothness_coef=self.smoothness_coefficient)
+        self.assertTrue(np.array_equal(self.x_0.shape, solver._compute_x_0(self.x_0).shape))
+
+    def test_activation_function(self):
+        x_0 = self.lb + (self.ub - self.lb) / 2
+        beta = 0.5 * x_0
+        activation_functions = [utils.activation_pwl, utils.activation_exp, utils.activation_sin,
+                                utils.activation_identity, utils.activation_tanh]
+
+        for activation_function in activation_functions:
+            solver = HopfieldSolver(max_iterations=self.k_max, activation_function=activation_function)
+            solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
+                                              self.binary_indicator, x_0=x_0, beta=beta,
+                                              smoothness_coef=self.smoothness_coefficient)
+            self.assertTrue(np.array_equal(x_0, solver._activation(x_0, self.lb, self.ub)))
+
+    def test_inverse_activation_function(self):
+        x_0 = self.lb + (self.ub - self.lb) / 2
+        beta = 0.5 * x_0
+        inverse_activation_functions = [utils.inverse_activation_pwl, utils.inverse_activation_exp,
+                                        utils.inverse_activation_sin, utils.inverse_activation_identity,
+                                        utils.inverse_activation_tanh]
+
+        for inverse_activation_function in inverse_activation_functions:
+            solver = HopfieldSolver(max_iterations=self.k_max, inverse_activation_function=inverse_activation_function)
+            solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
+                                              self.binary_indicator, x_0=x_0, beta=beta,
+                                              smoothness_coef=self.smoothness_coefficient)
+            self.assertTrue(np.array_equal(x_0, solver._inverse_activation(x_0, self.lb, self.ub)))
+
+        self.assertTrue(False)
+
+    def test_proxy_distance_vector(self):
+        x_0 = self.lb + (self.ub - self.lb) / 2
+        beta = 0.5 * x_0
+        proxy_distance_vectors = [utils.proxy_distance_vector_pwl, utils.proxy_distance_vector_exp,
+                                  utils.proxy_distance_vector_sin, utils.proxy_distance_vector_identity,
+                                  utils.proxy_distance_vector_tanh]
+
+        outputs = [0.25, 0.125, 0.25, 0, 0.25]
+
+        for i in range(len(proxy_distance_vectors)):
+            solver = HopfieldSolver(max_iterations=self.k_max, proxy_distance_vector=proxy_distance_vectors[i])
+            solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
+                                              self.binary_indicator, x_0=x_0, beta=beta,
+                                              smoothness_coef=self.smoothness_coefficient)
+            self.assertAlmostEqual(outputs[i], solver._proxy_distance_vector(x_0)[0], 3)
+
 #
 #     def test_compute_binary_absorption_mask(self):
 #         x_0 = 0.5 * np.ones(self.n)

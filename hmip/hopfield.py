@@ -4,14 +4,16 @@ import math
 
 
 class HopfieldSolver():
-    def __init__(self, activation_function=utils.proxy_distance_vector_sin,
-                 inverse_activation_function=utils.activation_sin, gamma=0.9, theta=0.1,
-                 ascent_stop_criterion=0.1, absorption_criterion=False, max_iterations=100, beta=1,
-                 stopping_criterion_type='gradient', direction_type='soft_binary', step_type='classic',
+    def __init__(self, activation_function=utils.activation_pwl,
+                 inverse_activation_function=utils.inverse_activation_pwl,
+                 proxy_distance_vector=utils.proxy_distance_vector_pwl,
+                 gamma=0.9, theta=0.1, ascent_stop_criterion=0.001, absorption_criterion=False, max_iterations=100,
+                 stopping_criterion_type='gradient', direction_type='classic', step_type='classic',
                  initial_ascent_type='ascent', precision_stopping_criterion=10 ** -6):
 
         self.activation_function = activation_function
         self.inverse_activation_function = inverse_activation_function
+        self.proxy_distance_vector = proxy_distance_vector
         self.ascent_stop_criterion = utils.adapt_ascent_stop_criterion(ascent_stop_criterion, absorption_criterion)
         self.stopping_criterion_type = stopping_criterion_type
         self.absorption_criterion = absorption_criterion
@@ -23,21 +25,25 @@ class HopfieldSolver():
         self.gamma = gamma
         self.theta = theta
         self.problem = None
-        self.beta = beta
+        self.beta = None
 
     def setup_optimization_problem(self, objective_function, gradient, lb, ub, binary_indicator, x_0=None,
-                                   smoothness_coef=None):
+                                   smoothness_coef=None, beta=None):
         # TODO: Find how to chose smoothness_coef when using barrier method
         self.problem = dict({'objective_function': objective_function, 'gradient': gradient, 'lb': lb, 'ub': ub,
                              'binary_indicator': binary_indicator,
                              'smoothness_coef': smoothness_coef, 'x_0': x_0, 'dim_problem': len(binary_indicator)})
+        if type(beta) == int:
+            self.beta = beta * np.ones(self.problem['dim_problem'])
+        elif beta is None:
+            self.beta = np.ones(self.problem['dim_problem'])
+        else:
+            self.beta = beta
         self.problem['x_0'] = self._compute_x_0(x_0)
 
     def solve_optimization_problem(self):
         if self.problem is None:
             raise Exception('Problem is not set')
-        if type(self.beta) == int:
-            self.beta = self.beta * np.ones(self.problem['dim_problem'])
 
         x = np.ones((self.problem['dim_problem'], self.max_iterations))
         x_h = np.ones((self.problem['dim_problem'], self.max_iterations))
@@ -65,7 +71,7 @@ class HopfieldSolver():
                 f_val_hist[k + 1] = f_val_hist[k] + 1
                 prox_dist = self._proxy_distance_vector(x[:, k])
                 while f_val_hist[k + 1] > f_val_hist[k] + alpha * np.dot(np.multiply(prox_dist, grad_f).T, direction):
-                    x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(x_h[:, k], x_h[:, k], alpha, direction)
+                    x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(x_h[:, k], alpha, direction)
                     f_val_hist[k + 1] = self.problem['objective_function'](x[:, k + 1])
                     alpha = alpha / 2
                 step_size[k] = 2 * alpha
@@ -73,7 +79,7 @@ class HopfieldSolver():
             else:
                 if alpha is None:
                     alpha = self._alpha_hop(x[:, k], grad_f, k, direction)
-                x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(x_h[:, k], x_h[:, k], alpha, direction)
+                x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(x_h[:, k], alpha, direction)
                 step_size[k] = alpha
                 f_val_hist[k + 1] = self.problem['objective_function'](x[:, k + 1])
 
@@ -86,12 +92,16 @@ class HopfieldSolver():
         print('Candidate solution found with %s number of iterations.' % k)
         return x, x_h, f_val_hist, step_size
 
-    def _hopfield_update(self, x, x_h, alpha, direction):
+    def _hopfield_update(self, x_h, alpha, direction):
+        if self.problem is None:
+            raise Exception('Problem is not set')
         x_h = x_h + alpha * direction
         x = self._activation(x_h, self.problem['lb'], self.problem['ub'])
         return x, x_h
 
     def _alpha_hop(self, x, grad_f, k, direction):
+        if self.problem is None:
+            raise Exception('Problem is not set')
         sigma = self._proxy_distance_vector(x)
         denominator = self.problem['smoothness_coef'] * np.linalg.norm(
             np.multiply(self.beta, direction)) ** 2 + 12 * np.dot(np.power(
@@ -105,6 +115,8 @@ class HopfieldSolver():
         return alpha
 
     def _compute_x_0(self, x_0):
+        if self.problem is None:
+            raise Exception('Problem is not set')
         if x_0 is None or not utils.is_in_box(x_0, self.problem['ub'], self.problem['lb']):
             return self.problem['lb'] + (self.problem['ub'] - self.problem['lb']) / 2
         n = len(x_0)
@@ -129,6 +141,8 @@ class HopfieldSolver():
                                         self.problem['lb'] + self.ascent_stop_criterion)
 
     def _stopping_criterion_met(self, x, grad_f, iterations):
+        if self.problem is None:
+            raise Exception('Problem is not set')
         if iterations >= self.max_iterations - 1:
             return True
         else:
@@ -140,6 +154,8 @@ class HopfieldSolver():
                 return False
 
     def _find_direction(self, x, grad_f, convergence_to_binary):
+        if self.problem is None:
+            raise Exception('Problem is not set')
         # TODO(Mathilde): Here sometimes there is no solution
         n = np.size(x)
         binary_absorption_mask = self._compute_binary_absorption_mask(x)
@@ -162,7 +178,7 @@ class HopfieldSolver():
             if self.direction_type is 'soft_binary':
                 b = np.multiply(
                     self._activation(x, self.problem['ub'], self.problem['lb']) + 1 / 2 * (
-                                self.problem['lb'] - self.problem['ub']),
+                            self.problem['lb'] - self.problem['ub']),
                     self.problem['binary_indicator'])
                 h = - grad_f
             elif self.direction_type is 'binary':
@@ -190,6 +206,8 @@ class HopfieldSolver():
         return direction
 
     def _compute_binary_absorption_mask(self, x):
+        if self.problem is None:
+            raise Exception('Problem is not set')
         n = np.size(x)
         binary_absorption_mask = np.ones(n)
         for i in range(n):
@@ -199,6 +217,8 @@ class HopfieldSolver():
         return binary_absorption_mask
 
     def _absorb_solution_to_limits(self, x):
+        if self.problem is None:
+            raise Exception('Problem is not set')
         for i in range(len(x)):
             if min(x[i] - self.problem['lb'][i], self.problem['ub'][i] - x[i]) < self.absorption_criterion:
                 if x[i] + 1 / 2 * (self.problem['lb'][i] - self.problem['ub'][i]) < 0:
@@ -216,6 +236,8 @@ class HopfieldSolver():
         return lb + np.multiply(ub - lb, self.activation_function(z, self.beta))
 
     def _proxy_distance_vector(self, x):
+        if self.problem is None:
+            raise Exception('Problem is not set')
         # TODO(BERTRAND): Check and rectify that function
         z = np.divide((x - self.problem['lb']), (self.problem['ub'] - self.problem['lb']))
-        return self.activation_function(z, self.beta)
+        return self.proxy_distance_vector(z, self.beta)
