@@ -3,410 +3,217 @@ import hmip.utils as utils
 import math
 
 
-# TODO(Mathilde): find another name fot L and H -> should be lower case
-def hopfield(H, q, lb, ub, binary_indicator,
-             k_max=None, absorption_criterion=None, gamma=0.9, theta=0.1, ascent_stop_criterion=0.1,
-             precision_stopping_criterion=10 ** -6,
-             x_0=None, beta=None, alpha=None,
-             step_type='classic', direction_type='soft_binary',
-             activation_type='sin', initial_ascent_type='binary_neutral_ascent',
-             stopping_criterion_type='gradient'):
-    """
+class HopfieldSolver():
+    def __init__(self, activation_function=utils.proxy_distance_vector_sin,
+                 inverse_activation_function=utils.activation_sin, gamma=0.9, theta=0.1,
+                 ascent_stop_criterion=0.1, absorption_criterion=None, max_iterations=100, beta=1,
+                 stopping_criterion_type='gradient', direction_type='soft_binary', step_type='classic',
+                 initial_ascent_type='ascent', precision_stopping_criterion=10 ** -6):
 
-    Solves the following optimization problem by computing the Hopfield method
-        min f(x) = 1/2 x^T * H * x + q^T * x
-            st lb <= x <= ub
-            x_i \in {lb_i, ub_i} if binary_indicator_i == 1
+        self.activation_function = activation_function
+        self.inverse_activation_function = inverse_activation_function
+        self.ascent_stop_criterion = utils.adapt_ascent_stop_criterion(ascent_stop_criterion, absorption_criterion)
+        self.stopping_criterion_type = stopping_criterion_type
+        self.absorption_criterion = absorption_criterion
+        self.initial_ascent_type = initial_ascent_type
+        self.step_type = step_type
+        self.direction_type = direction_type
+        self.max_iterations = max_iterations
+        self.precision_stopping_criterion = precision_stopping_criterion
+        self.gamma = gamma
+        self.theta = theta
+        self.problem = None
+        self.beta = beta
 
-    :param H: (size(x), size(x)) matrix of the optimization problem
-    :param q: (size(x), 1) matrix of the optimization problem
-    :param lb: (size(x), 1) matrix of the optimization problem
-    :param ub: (size(x), 1) matrix of the optimization problem
-    :param binary_indicator: (size(x), 1) vector of value 1 if the corresponding x is in {0, 1} and 0 otherwise.
-    :param k_max: (default = 0) integer
-    :param absorption: (default = None) float
-    :param gamma:
-    :param theta:
-    :param x_0: initial state
-    :param beta: (default = None) array of size x, if it is None, it will be ones(size(x))
-    :param step_type: (string)
-    :param direction_type: (string)
-    :param activation_type: (string)
-    :param initial_ascent_type (string):
-            - 'no_ascent'               (takes default value at the center of the box [lb,ub] if no initial type is given)
-            - 'ascent'                  (classic gradient ascent with step size 1/L)
-            - 'binary_neutral_ascent'   (gradient ascent for non binary components, binary states are taken at the center)
+    def setup_optimization_problem(self, objective_function, gradient, lb, ub, binary_indicator, x_0=None,
+                                   smoothness_coef=None):
+        # TODO: Find how to chose smoothness_coef when using barrier method
+        self.problem = {'objective_function': objective_function, 'gradient': gradient, 'lb': lb, 'ub': ub,
+             'binary_indicator': binary_indicator,
+             'smoothness_coef': smoothness_coef, 'x_0': x_0, 'dim_problem': len(binary_indicator)}
+        print(self.problem['lb'])
+        self.problem['x_0'] = self._compute_x_0(x_0)
 
-    :return: x, x_h, f_val_hist, step_size
+    def solve_optimization_problem(self):
+        if self.problem is None:
+            raise Exception('Problem is not set')
+        if type(self.beta) == int:
+            self.beta = self.beta * np.ones(self.problem['dim_problem'])
 
-        x: (n, size(x)) vector of the optimal solution at each update
-        x_h: (n, size(x)) vector of the hidden variable at each update
-        f_val_hist: (n, 1) vector of the function f at each update
-        step_size: (n, 1) vector of the step size at each update
-    """
+        x = np.ones((self.problem['dim_problem'], self.max_iterations))
+        x_h = np.ones((self.problem['dim_problem'], self.max_iterations))
+        f_val_hist = np.ones(self.max_iterations)
+        step_size = np.ones(self.max_iterations)
+        alpha = None
 
-    n = np.size(q)
+        x[:, 0] = self.problem['x_0']
+        x_h[:, 0] = self._inverse_activation(self.problem['x_0'], self.problem['lb'], self.problem['ub'])
+        f_val_hist[0] = self.problem['objective_function'](x[:, 0])
+        grad_f = self.problem['gradient'](x[:, 0])
+        if np.linalg.norm(grad_f) == 0:
+            grad_f = (self.problem['smoothness_coef'] / 10) * (np.random.rand(self.problem['dim_problem']) - 0.5)
+        k = 0
 
-    # initialization of the Hopfield vector
-    x = np.ones((n, k_max))
-    x_h = np.ones((n, k_max))
-    f_val_hist = np.ones(k_max)
-    step_size = np.ones(k_max)
+        while not self._stopping_criterion_met(x[:, k], grad_f, k):
+            convergence_to_binary = np.linalg.norm(
+                np.multiply(self._proxy_distance_vector(x[:, k]), self.problem['binary_indicator']))
 
-    # check if matrix is symmetric
-    H = utils.make_symmetric(H)
+            direction = self._find_direction(x[:, k], grad_f, convergence_to_binary)
+            # TODO(Mathilde): remove the for loop (more efficient matrix product)
 
-    # Assess convexity of matrix H
-    # convexity = utils.assess_convexity_of_objective(H)
+            if self.step_type == 'armijo':
+                alpha = np.divide(np.linalg.norm(grad_f), self.problem['smoothness_coef'])
+                f_val_hist[k + 1] = f_val_hist[k] + 1
+                prox_dist = self._proxy_distance_vector(x[:, k])
+                while f_val_hist[k + 1] > f_val_hist[k] + alpha * np.dot(np.multiply(prox_dist, grad_f).T, direction):
+                    x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(x_h[:, k], x_h[:, k], alpha, direction)
+                    f_val_hist[k + 1] = self.problem['objective_function'](x[:, k + 1])
+                    alpha = alpha / 2
+                step_size[k] = 2 * alpha
 
-    # check if absorption value is strictly larger than ascent stop
-    ascent_stop_criterion = utils.adapt_ascent_stop_criterion(ascent_stop_criterion, absorption_criterion)
-
-    if beta is None:
-        beta = np.ones(n)
-
-    smoothness_coef = smoothness_coefficient(H)
-
-    x0 = initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coef, x_0, initial_ascent_type,
-                       ascent_stop_criterion)
-
-    x[:, 0] = x0
-    x_h[:, 0] = inverse_activation(x0, lb, ub, beta, activation_type)
-    f_val_hist[0] = objective_function(x[:, 0], H, q)
-    k = 0
-    grad_f = np.dot(H, x[:, k]) + q
-
-    while not stopping_criterion_met(x[:, k], lb, ub, beta, activation_type, grad_f, k, k_max, stopping_criterion_type,
-                                     precision_stopping_criterion):
-
-        # Assess convergence indicator for binary constrained components
-        convergence_to_binary = np.linalg.norm(
-            np.multiply(proxy_distance_vector(x[:, k], lb, ub, beta, activation_type), binary_indicator))
-
-        # gradient
-        grad_f = np.dot(H, x[:, k]) + q
-
-        # Make sure initial point is not stuck at gradient=0 at the initial point
-        if k is 0 and np.linalg.norm(grad_f) == 0:
-            grad_f = (smoothness_coef / 10) * (np.random.rand(n) - 0.5)
-
-        # direction
-        direction = find_direction(x[:, k], grad_f, lb, ub, binary_indicator, beta, direction_type,
-                                   absorption_criterion, gamma,
-                                   theta, activation_type, convergence_to_binary)
-        # update hidden values
-        # TODO(Mathilde): remove the for loop (more efficient matrix product)
-
-        if step_type == 'armijo':
-            alpha = np.divide(np.linalg.norm(grad_f), smoothness_coef)
-            f_val_hist[k + 1] = f_val_hist[k] + 1
-            prox_dist = proxy_distance_vector(x[:, k], lb, ub, beta, activation_type)
-            while f_val_hist[k + 1] > f_val_hist[k] + alpha * np.dot(np.multiply(prox_dist, grad_f).T, direction):
-                x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta, activation_type)
-                f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
-                alpha = alpha / 2
-            step_size[k] = 2 * alpha
-
-        else:
-            if alpha is None:
-                alpha = alpha_hop(x[:, k], grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_type,
-                                  activation_type)
-            x[:, k + 1], x_h[:, k + 1] = hopfield_update(x_h[:, k], lb, ub, alpha, direction, beta, activation_type)
-            step_size[k] = alpha
-            f_val_hist[k + 1] = objective_function(x[:, k + 1], H, q)
-
-        if absorption_criterion is not None:
-            x[:, k + 1] = absorb_solution_to_limits(x[:, k + 1], ub, lb, absorption_criterion)
-
-        k += 1
-
-    print('Candidate solution found with %s number of iterations.' % k)
-    return x, x_h, f_val_hist, step_size
-
-
-def smoothness_coefficient(H):
-    """
-    Compute the soothness coefficient with max(eig(H))
-    :param H: (np.array) matrix of size (n, n), quadratic term of the problem
-    :return: (np.float) scalar, smoothness coefficient
-    """
-    return np.absolute(np.max(np.linalg.eigvals(H)))
-
-
-def objective_function(x, H, q):
-    """
-    Compute the value of the objective function
-
-        f(x) = 1/2 x^T * H * x + q^T * x
-
-    :param x:
-    :param H:
-    :param q:
-    :return:
-    """
-    return 1 / 2 * np.dot(np.dot(x.T, H), x) + np.dot(q.T, x)
-
-
-def absorb_solution_to_limits(x, ub, lb, absorption_criterion):
-    for i in range(len(x)):
-        if min(x[i] - lb[i], ub[i] - x[i]) < absorption_criterion:
-            if x[i] + 1 / 2 * (lb[i] - ub[i]) < 0:
-                x[i] = lb[i]
             else:
-                x[i] = ub[i]
-    return x
+                if alpha is None:
+                    alpha = self._alpha_hop(x[:, k], grad_f, k, direction)
+                x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(x_h[:, k], x_h[:, k], alpha, direction)
+                step_size[k] = alpha
+                f_val_hist[k + 1] = self.problem['objective_function'](x[:, k + 1])
 
+            if self.absorption_criterion is not None:
+                x[:, k + 1] = self._absorb_solution_to_limits(x[:, k + 1])
 
-def initial_state(H, q, lb, ub, binary_indicator, k_max, smoothness_coeff, x_0,
-                  initial_ascent_type, ascent_stop_criterion):
-    if x_0 is None or not utils.is_in_box(x_0, ub, lb):
-        # x_0 = lb + (ub - lb) / 2
-        x_0 = lb + (ub - lb) / 2
+            k += 1
+            grad_f = self.problem['gradient'](x[:, k])
+
+        print('Candidate solution found with %s number of iterations.' % k)
+        return x, x_h, f_val_hist, step_size
+
+    def _hopfield_update(self, x, x_h, alpha, direction):
+        x_h = x_h + alpha * direction
+        x = self._activation(x_h, self.problem['lb'], self.problem['ub'])
+        return x, x_h
+
+    def _alpha_hop(self, x, grad_f, k, direction):
+        sigma = self._proxy_distance_vector(x)
+        denominator = self.problem['smoothness_coef'] * np.linalg.norm(
+            np.multiply(self.beta, direction)) ** 2 + 12 * np.dot(np.power(
+            np.multiply(self.beta, direction), 2), np.absolute(grad_f))
+        numerator = - np.dot(np.multiply(sigma, grad_f), direction)
+        alpha = np.divide(numerator, denominator)
+
+        if self.direction_type is 'stochastic':
+            alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (self.problem['smoothness_coef'] * np.sqrt(k))
+
+        return alpha
+
+    def _compute_x_0(self, x_0):
+        if x_0 is None or not utils.is_in_box(x_0, self.problem['ub'], self.problem['lb']):
+            return self.problem['lb'] + (self.problem['ub'] - self.problem['lb']) / 2
         n = len(x_0)
-        grad_f = 1
+        iterations = 0
+        max_iterations = 10
+        grad_f = self.problem['gradient'](x_0)
+        if np.linalg.norm(grad_f) == 0:
+            grad_f = (self.problem['smoothness_coef'] / 10) * (np.random.rand(n) - 0.5)
 
-    if initial_ascent_type is 'ascent':
-        k = 0
-        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion) \
+        while iterations < max_iterations and utils.is_in_box(x_0, self.problem['ub'] - self.ascent_stop_criterion,
+                                                              self.problem['lb'] + self.ascent_stop_criterion) \
                 and np.linalg.norm(grad_f) > (10 ** -6) * (1 / n):
-            grad_f = np.dot(H, x_0) + q
-            # Make sure initial point is not stuck at gradient=0 at the initial point
-            if k is 0 and np.linalg.norm(grad_f) == 0:
-                grad_f = (smoothness_coeff / 10) * (np.random.rand(n) - 0.5)
-            x_0 = x_0 + (1 / smoothness_coeff) * grad_f
-            k = k + 1
-        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(n),
-                         activation_type='pwl')
+            if self.initial_ascent_type is 'ascent':
+                x_0 = x_0 + (1 / self.problem['smoothness_coef']) * grad_f
+            elif self.initial_ascent_type is 'binary_neutral_ascent':
+                x_0 = x_0 + (1 / self.problem['smoothness_coef']) * np.multiply(grad_f,
+                                                                         np.ones(n) - self.problem['binary_indicator'])
+            iterations += 1
 
+        return self._inverse_activation(x_0, self.problem['ub'] - self.ascent_stop_criterion,
+                                        self.problem['lb'] + self.ascent_stop_criterion)
 
-    elif initial_ascent_type is 'binary_neutral_ascent':
-        k = 0
-        while k < k_max and utils.is_in_box(x_0, ub - ascent_stop_criterion, lb + ascent_stop_criterion) \
-                and np.linalg.norm(grad_f) > (10 ** -6) * (1 / n):
-            grad_f = np.dot(H, x_0) + q
-            # Make sure initial point is not stuck at gradient=0 at the initial point
-            if k is 0 and np.linalg.norm(grad_f) == 0:
-                grad_f = (smoothness_coeff / 10) * (np.random.rand(n) - 0.5)
-            x_0 = x_0 + (1 / smoothness_coeff) * np.multiply(grad_f, np.ones(n) - binary_indicator)
-            k = k + 1
-        x_0 = activation(x_0, lb + ascent_stop_criterion, ub - ascent_stop_criterion, np.ones(n),
-                         activation_type='pwl')
-
-    return x_0
-
-
-def find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type, absorption_criterion, gamma, theta,
-                   activation_type, convergence_to_binary):
-    """
-
-    :param x:
-    :param grad_f:
-    :param lb:
-    :param ub:
-    :param binary_indicator:
-    :param direction_type:
-    :param absorption_criterion:
-    :param gamma:
-    :param theta:
-    :param beta:
-    :param activation_type:
-    :return:
-    """
-    n = np.size(x)
-    binary_absorption_mask = compute_binary_absorption_mask(x, lb, ub, binary_indicator)
-
-
-    # classic gradient
-    if direction_type is 'classic' or direction_type is 'stochastic' or convergence_to_binary < (1/n)*(10 ** -6):
-        if not absorption_criterion:
-            direction = - grad_f
-        else:
-            direction = - np.multiply(binary_absorption_mask, grad_f)
-
-        if direction_type is 'stochastic':
-            # TODO(Mathilde): make 0.3 as a parameter
-            direction = - np.multiply(direction, (np.random.uniform(0, 1, n) - 0.3))
-
-    # binary gradient related direction methods
-    # TODO(Mathilde): check with paper + Bertrand - change name of variables
-    elif (direction_type is 'binary' or direction_type is 'soft_binary') and convergence_to_binary >= (1/n)*(10 ** -6):
-        if direction_type is 'soft_binary':
-            b = np.multiply(activation(x, lb, ub, beta, activation_type=activation_type) + 1 / 2 * (lb - ub),
-                            binary_indicator)
-            h = - grad_f
-        elif direction_type is 'binary':
-            b = np.multiply(np.sign(x + 1 / 2 * (lb - ub)), binary_indicator)
-            h = - grad_f
-
-        g = - np.multiply(proxy_distance_vector(x, lb, ub, beta, activation_type=activation_type), grad_f)
-
-        if absorption_criterion:
-            b = np.multiply(binary_absorption_mask, b)
-            h = np.multiply(binary_absorption_mask, h)
-
-        b = utils.normalize_array(b)
-        h = utils.normalize_array(h)
-        g = utils.normalize_array(g)
-
-        w = gamma * b + (1 - gamma) * h
-        y = max(0, - np.dot(g.T, w) + math.atan(theta) * np.sqrt(np.linalg.norm(w) ** 2 - np.dot(g.T, w) ** 2))
-
-        direction = w + y * g
-
-    else:
-        print('direction type does not exist -> automatically set direction type to pwl')
-        direction = find_direction(x, grad_f, lb, ub, binary_indicator, beta, direction_type='classic',
-                                   absorption_criterion=absorption_criterion, gamma=gamma, theta=theta,
-                                   activation_type=activation_type)
-
-    # normalize
-    direction = utils.normalize_array(direction)
-
-    return direction
-
-
-# TODO(Mathilde): remove the integers without justification
-
-# TODO(Bertrand): not a priority, but the coefficient 12 in the denominator could be improved, by choosing the best
-#  constant for each activation function type
-
-def alpha_hop(x, grad_f, direction, k, lb, ub, smoothness_coef, beta, direction_type, activation_type):
-    sigma = proxy_distance_vector(x, lb, ub, beta, activation_type)
-
-    denominator = smoothness_coef * np.linalg.norm(np.multiply(beta, direction)) ** 2 + 12 * np.dot(np.power(
-        np.multiply(beta, direction), 2), np.absolute(grad_f))
-    numerator = - np.dot(np.multiply(sigma, grad_f), direction)
-
-    alpha = np.divide(numerator, denominator)
-
-    if direction_type is 'stochastic':
-        alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (smoothness_coef * np.sqrt(k))
-
-    return alpha
-
-
-def hopfield_update(x_h, lb, ub, alpha, direction, beta, activation_type):
-    """
-    Compute the explicit discretization of HNN for one step.
-
-    :param x_h:
-    :param lb:
-    :param ub:
-    :param alpha:
-    :param direction:
-    :param beta:
-    :param activation_type:
-    :return:
-    """
-
-    # update of the hidden states
-    x_h = x_h + alpha * direction
-
-    # update of the state
-    x = activation(x_h, lb, ub, beta, activation_type)
-    return x, x_h
-
-
-def activation(x, lb, ub, beta, activation_type):
-    """
-
-    :param x:
-    :param lb:
-    :param ub:
-    :param beta:
-    :param activation_type:
-    :return:
-    """
-    z = np.divide((x - lb), (ub - lb))
-    if activation_type is 'pwl':
-        return lb + np.multiply(ub - lb, utils.activation_pwl(z, beta))
-    if activation_type is 'exp':
-        return lb + np.multiply(ub - lb, utils.activation_exp(z, beta))
-    if activation_type is 'sin':
-        return lb + np.multiply(ub - lb, utils.activation_sin(z, beta))
-    if activation_type is 'identity':
-        return lb + np.multiply(ub - lb, utils.activation_pwl(z, beta))
-    if activation_type is 'tanh':
-        return lb + np.multiply(ub - lb, utils.activation_tanh(z, beta))
-
-
-def inverse_activation(x, lb, ub, beta, activation_type):
-    """
-
-    :param x:
-    :param lb:
-    :param ub:
-    :param beta:
-    :param activation_type:
-    :return:
-    """
-    z = np.divide((x - lb), (ub - lb))
-    if activation_type is 'pwl':
-        return lb + np.multiply(ub - lb, utils.inverse_activation_pwl(z, beta))
-    if activation_type is 'exp':
-        return lb + np.multiply(ub - lb, utils.inverse_activation_exp(z, beta))
-    if activation_type is 'sin':
-        return lb + np.multiply(ub - lb, utils.inverse_activation_sin(z, beta))
-    if activation_type is 'identity':
-        return lb + np.multiply(ub - lb, utils.inverse_activation_pwl(z, beta))
-    if activation_type is 'tanh':
-        return lb + np.multiply(ub - lb, utils.inverse_activation_tanh(z, beta))
-
-
-def proxy_distance_vector(x, lb, ub, beta, activation_type):
-    """
-    Compute the binary proxy distance sigma'(sigma^(-1)(x))
-
-    :param x:
-    :param lb:
-    :param ub:
-    :param beta:
-    :param activation_type:
-    :return:
-    """
-
-    # TODO(BERTRAND): Check and rectify that function
-    z = np.divide((x - lb), (ub - lb))
-
-    if activation_type == 'pwl':
-        return utils.proxy_distance_vector_pwl(z, beta)
-    if activation_type == 'exp':
-        return utils.proxy_distance_vector_exp(z, beta)
-    if activation_type == 'sin':
-        return utils.proxy_distance_vector_sin(z, beta)
-    if activation_type == 'identity':
-        return utils.proxy_distance_vector_pwl(z, beta)
-    if activation_type == 'tanh':
-        return utils.proxy_distance_vector_tanh(z, beta)
-
-
-def compute_binary_absorption_mask(x, lb, ub, binary_indicator):
-    """
-
-    :param x:
-    :param lb:
-    :param ub:
-    :param binary_indicator:
-    :return:
-    """
-
-    n = np.size(x)
-    binary_absorption_mask = np.ones(n)
-    for i in range(n):
-        if binary_indicator[i]:
-            if x[i] == ub[i] or x[i] == lb[i]:
-                binary_absorption_mask[i] = 0
-    return binary_absorption_mask
-
-
-def stopping_criterion_met(x, lb, ub, beta, activation_type, gradf, k, kmax, stopping_criterion_type,
-                           precision_stopping_criterion):
-    if k >= kmax - 1:
-        return True
-    else:
-        if stopping_criterion_type is 'gradient' and np.linalg.norm(
-                np.multiply(gradf, proxy_distance_vector(x, lb, ub, beta,
-                                                         activation_type=activation_type))) < precision_stopping_criterion:
+    def _stopping_criterion_met(self, x, grad_f, iterations):
+        if iterations >= self.max_iterations - 1:
             return True
         else:
-            return False
+            # TODO(Mathilde): here there is not other option for the stopping criterion!!
+            if self.stopping_criterion_type is 'gradient' and np.linalg.norm(
+                    np.multiply(grad_f, self._proxy_distance_vector(x))) < self.precision_stopping_criterion:
+                return True
+            else:
+                return False
+
+    def _find_direction(self, x, grad_f, convergence_to_binary):
+        n = np.size(x)
+        binary_absorption_mask = self._compute_binary_absorption_mask(x)
+
+        # classic gradient
+        if self.direction_type is 'classic' or self.direction_type is 'stochastic' or convergence_to_binary < (
+                1 / n) * (
+                10 ** -6):
+            if not self.absorption_criterion:
+                direction = - grad_f
+            else:
+                direction = - np.multiply(binary_absorption_mask, grad_f)
+
+            if self.direction_type is 'stochastic':
+                # TODO(Mathilde): make 0.3 as a parameter
+                direction = - np.multiply(direction, (np.random.uniform(0, 1, n) - 0.3))
+
+        elif (self.direction_type is 'binary' or self.direction_type is 'soft_binary') and convergence_to_binary >= (
+                1 / n) * (
+                10 ** -6):
+            if self.direction_type is 'soft_binary':
+                b = np.multiply(
+                    self._activation(x, self.problem['ub'], self.problem['lb']) + 1 / 2 * (self.problem['lb'] - self.problem['ub']),
+                    self.problem['binary_indicator'])
+                h = - grad_f
+            elif self.direction_type is 'binary':
+                b = np.multiply(np.sign(x + 1 / 2 * (self.problem['lb'] - self.problem['ub'])), self.problem['binary_indicator'])
+                h = - grad_f
+
+            g = - np.multiply(self._proxy_distance_vector(x), grad_f)
+
+            if self.absorption_criterion:
+                b = np.multiply(binary_absorption_mask, b)
+                h = np.multiply(binary_absorption_mask, h)
+
+            b = utils.normalize_array(b)
+            h = utils.normalize_array(h)
+            g = utils.normalize_array(g)
+            w = self.gamma * b + (1 - self.gamma) * h
+            y = max(0, - np.dot(g.T, w) + math.atan(self.theta) * np.sqrt(np.linalg.norm(w) ** 2 - np.dot(g.T, w) ** 2))
+            direction = w + y * g
+        else:
+            raise Exception('Direction Type does not exist!')
+
+        direction = utils.normalize_array(direction)
+
+        return direction
+
+    def _compute_binary_absorption_mask(self, x):
+        n = np.size(x)
+        binary_absorption_mask = np.ones(n)
+        for i in range(n):
+            if self.problem['binary_indicator'][i]:
+                if x[i] == self.problem['ub'][i] or x[i] == self.problem['lb'][i]:
+                    binary_absorption_mask[i] = 0
+        return binary_absorption_mask
+
+    def _absorb_solution_to_limits(self, x):
+        for i in range(len(x)):
+            if min(x[i] - self.problem['lb'][i], self.problem['ub'][i] - x[i]) < self.absorption_criterion:
+                if x[i] + 1 / 2 * (self.problem['lb'][i] - self.problem['ub'][i]) < 0:
+                    x[i] = self.problem['lb'][i]
+                else:
+                    x[i] = self.problem['ub'][i]
+        return x
+
+    def _inverse_activation(self, x, ub, lb):
+        z = np.divide((x - lb), (ub - lb))
+        return lb + np.multiply(ub - lb, self.inverse_activation_function(z, self.beta))
+
+    def _activation(self, x, ub, lb):
+        z = np.divide((x - lb), (ub - lb))
+        return lb + np.multiply(ub - lb, self.activation_function(z, self.beta))
+
+    def _proxy_distance_vector(self, x):
+        # TODO(BERTRAND): Check and rectify that function
+        z = np.divide((x - self.problem['lb']), (self.problem['ub'] - self.problem['lb']))
+        return self.activation_function(z, self.beta)

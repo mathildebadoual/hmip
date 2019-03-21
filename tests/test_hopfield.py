@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-import hmip.hopfield as hop
+from hmip.hopfield import HopfieldSolver
 
 
 class TestHopfield(unittest.TestCase):
@@ -14,6 +14,13 @@ class TestHopfield(unittest.TestCase):
         self.lb = np.array([0, 0])
         self.absorption = 1
         self.step_type = 'classic'
+        self.solver = HopfieldSolver()
+
+    def test_raise_error_no_problem_set(self):
+        with self.assertRaises(Exception) as context:
+            self.solver.solve_optimization_problem()
+
+        self.assertTrue('Problem is not set' in str(context.exception))
 
     def test_hopfield_default(self):
         x, x_h, f_val_hist, step_size = hop.hopfield(self.H, self.q, self.lb, self.ub, self.binary_indicator,

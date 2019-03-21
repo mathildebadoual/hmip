@@ -163,3 +163,17 @@ class TestCheck(unittest.TestCase):
         non_symmetric_matrix = np.array([[1, 0], [0, 1]])
         self.assertTrue(np.array_equal(utils.make_symmetric(non_symmetric_matrix),
                                        0.5 * (non_symmetric_matrix + non_symmetric_matrix.T)))
+
+
+class TestParserMPSfiles(unittest.TestCase):
+    def setUp(self):
+        self.file_path = 'test_with_miplib/test.mps'
+
+    def test_parser_mps_file(self):
+        var_types, bounds, objsense, c, c0, A, b, con_types = utils.parser_mps_file(self.file_path)
+        self.assertTrue(np.array_equal(A, np.array([[1, 1, 0], [1, 0, 1], [0, -1, 1]])))
+        self.assertTrue(np.array_equal(b, np.array([5, 10, 7])))
+        self.assertTrue(np.array_equal(con_types, [0, 2, 1]))
+        self.assertTrue(np.array_equal(var_types, [True, True, True]))
+        self.assertEqual(objsense, 'min')
+        self.assertTrue(np.array_equal(bounds, np.array([(0, 4), (-1, 1)])))
