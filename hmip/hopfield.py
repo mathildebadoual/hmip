@@ -4,16 +4,14 @@ import math
 
 
 class HopfieldSolver():
-    def __init__(self, activation_function=utils.activation_sin,
-                 inverse_activation_function=utils.inverse_activation_sin,
-                 proxy_distance_vector=utils.proxy_distance_vector_sin,
+    def __init__(self, activation_type='sin',
                  gamma=0.95, theta=0.05, ascent_stop_criterion=0.06, absorption_criterion=0.05, max_iterations=100,
                  stopping_criterion_type='gradient', direction_type='soft_binary', step_type='classic',
                  initial_ascent_type='binary_neutral_ascent', precision_stopping_criterion=10 ** -6):
 
-        self.activation_function = activation_function
-        self.inverse_activation_function = inverse_activation_function
-        self.proxy_distance_vector = proxy_distance_vector
+        self.activation_function = getattr(utils, 'activation_' + activation_type)
+        self.inverse_activation_function = getattr(utils, 'inverse_activation_' + activation_type)
+        self.proxy_distance_vector = getattr(utils, 'proxy_distance_vector_' + activation_type)
         self.ascent_stop_criterion = utils.adapt_ascent_stop_criterion(ascent_stop_criterion, absorption_criterion)
         self.stopping_criterion_type = stopping_criterion_type
         self.absorption_criterion = absorption_criterion
@@ -49,10 +47,10 @@ class HopfieldSolver():
         x_h = np.nan * np.ones((self.problem['dim_problem'], self.max_iterations))
         f_val_hist = np.nan * np.ones(self.max_iterations)
         step_size = np.nan * np.ones(self.max_iterations)
-        alpha = None
 
         x[:, 0] = self.problem['x_0']
-        x_h[:, 0] = self._inverse_activation(self.problem['x_0'], self.problem['lb'], self.problem['ub'])
+        print(self.problem['x_0'])
+        x_h[:, 0] = self._inverse_activation(self.problem['x_0'])
         f_val_hist[0] = self.problem['objective_function'](x[:, 0])
         grad_f = self.problem['gradient'](x[:, 0])
         if np.linalg.norm(grad_f) == 0:
@@ -93,7 +91,7 @@ class HopfieldSolver():
         if self.problem is None:
             raise Exception('Problem is not set')
         x_h = x_h + alpha * direction
-        x = self._activation(x_h, self.problem['lb'], self.problem['ub'])
+        x = self._activation(x_h)
         return x, x_h
 
     def _alpha_hop(self, x, grad_f, k, direction):
@@ -134,8 +132,9 @@ class HopfieldSolver():
                                                                                     'binary_indicator'])
             iterations += 1
 
-        return self._inverse_activation(x_0, self.problem['ub'] - self.ascent_stop_criterion,
-                                        self.problem['lb'] + self.ascent_stop_criterion)
+        print(x_0)
+
+        return x_0
 
     def _stopping_criterion_met(self, x, grad_f, iterations):
         if self.problem is None:
@@ -172,7 +171,7 @@ class HopfieldSolver():
         elif (self.direction_type is 'binary' or self.direction_type is 'soft_binary'):
             if self.direction_type is 'soft_binary':
                 b = np.multiply(
-                    self._activation(x, self.problem['ub'], self.problem['lb']) + 1 / 2 * (
+                    self._activation(x) + 1 / 2 * (
                             self.problem['lb'] - self.problem['ub']),
                     self.problem['binary_indicator'])
                 h = - grad_f
@@ -223,13 +222,13 @@ class HopfieldSolver():
                     x[i] = self.problem['ub'][i]
         return x
 
-    def _inverse_activation(self, x, ub, lb):
-        z = np.divide((x - lb), (ub - lb))
-        return lb + np.multiply(ub - lb, self.inverse_activation_function(z, self.beta))
+    def _inverse_activation(self, x):
+        z = np.divide((x - self.problem['lb']), (self.problem['ub'] - self.problem['lb']))
+        return self.problem['lb'] + np.multiply(self.problem['ub'] - self.problem['lb'], self.inverse_activation_function(z, self.beta))
 
-    def _activation(self, x, ub, lb):
-        z = np.divide((x - lb), (ub - lb))
-        return lb + np.multiply(ub - lb, self.activation_function(z, self.beta))
+    def _activation(self, x):
+        z = np.divide((x - self.problem['lb']), (self.problem['ub'] - self.problem['lb']))
+        return self.problem['lb'] + np.multiply(self.problem['ub'] - self.problem['lb'], self.activation_function(z, self.beta))
 
     def _proxy_distance_vector(self, x):
         if self.problem is None:

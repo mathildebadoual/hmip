@@ -186,7 +186,7 @@ def inverse_activation_tanh(x, beta):
     :return:
     """
 
-    print(2 * x - 1)
+    print(x)
     tanh = np.divide(np.arctanh(2 * x - 1), 2 * beta) + 1 / 2
     return tanh
 
