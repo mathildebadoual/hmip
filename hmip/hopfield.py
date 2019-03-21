@@ -46,9 +46,9 @@ class HopfieldSolver():
             raise Exception('Problem is not set')
 
         x = np.nan * np.ones((self.problem['dim_problem'], self.max_iterations))
-        x_h = np.ones((self.problem['dim_problem'], self.max_iterations))
-        f_val_hist = np.ones(self.max_iterations)
-        step_size = np.ones(self.max_iterations)
+        x_h = np.nan * np.ones((self.problem['dim_problem'], self.max_iterations))
+        f_val_hist = np.nan * np.ones(self.max_iterations)
+        step_size = np.nan * np.ones(self.max_iterations)
         alpha = None
 
         x[:, 0] = self.problem['x_0']
