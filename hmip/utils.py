@@ -1,6 +1,15 @@
 import numpy as np
 
 
+def smoothness_coefficient(H):
+    """
+    Compute the soothness coefficient with max(eig(H))
+    :param H: (np.array) matrix of size (n, n), quadratic term of the problem
+    :return: (np.float) scalar, smoothness coefficient
+    """
+    return np.absolute(np.max(np.linalg.eigvals(H)))
+
+
 def is_in_box(x, ub, lb):
     if np.all(np.greater(ub, x)) and np.all(np.greater(x, lb)):
         return True
@@ -40,6 +49,11 @@ def proxy_distance_vector_sin(x, beta):
     :param beta: (np.array) size of x, parameter of the function
     :return:
     """
+    # TODO(Bertrand): check
+    if np.isnan(x).any():
+        return x
+    if np.less_equal((1 - x), 0).any():
+        x = x - 0.001 * np.ones(len(x))
     sin = 2 * np.multiply(np.multiply(beta, np.sqrt(x)), np.sqrt(1 - x))
     return sin
 
@@ -171,7 +185,9 @@ def inverse_activation_tanh(x, beta):
     :param beta: (np.array) size of x, parameter of the function
     :return:
     """
-    tanh = 2 * np.multiply(np.linalg.inv(beta), np.arctanh(2 * x - 1)) + 1 / 2
+
+    print(2 * x - 1)
+    tanh = np.divide(np.arctanh(2 * x - 1), 2 * beta) + 1 / 2
     return tanh
 
 
@@ -367,3 +383,359 @@ def assess_convexity_of_objective(H):
         return False
     else:
         return True
+
+
+def parser_mps_file(file_path):
+    fixed = True
+    sections = dict({"NAME": False,
+                     "ROWS": False,
+                     "COLUMNS": False,
+                     "RHS": False,
+                     "BOUNDS": False,
+                     "RANGES": False,
+                     "SOS": False,
+                     "ENDATA": False})
+    if not fixed:
+        sections["OBJSENSE"] = False
+        sections["OBJNAME"] = False
+
+    var_names = dict()
+    con_names = dict()
+    var_types = []  # true : float   False : int
+    con_types = []  # 1 : <=, 2 : ==, 3 : >=
+
+    # Default values
+    name = ""
+    objective_name = ""
+    objsense = 'min'
+    n_var = 0
+    n_con = 0
+    A = None
+    b = None
+    c = None
+    c0 = 0.0
+    bounds = []
+
+    f = open(file_path, 'r')
+    while not sections["ENDATA"]:
+        line = f.readline()
+        # Read the section name and avoid empty lines and comments
+        while line.strip() == "" or line[1] == '*':
+            line = f.readline()
+        words = line.split()
+        section = words[0]
+
+        # Errors in sections names and order
+        if not section in sections.keys():
+            raise Exception("Section ", section, " is not a valid section")
+        elif sections[section]:
+            raise Exception("Section ", section, " appears twice")
+        elif section == "COLUMNS" and not sections["ROWS"]:
+            raise Exception("ROWS must come before COLUMNS")
+        elif section == "RHS" and (not sections["COLUMNS"] or not sections["NAME"]):
+            raise Exception("NAME and COLUMNS must come before RHS")
+        elif section == "BOUNDS" and not sections["COLUMNS"]:
+            raise Exception("COLUMNS must come before BOUNDS")
+        elif section == "RANGES" and not sections["RHS"]:
+            raise Exception("RHS must come before RANGES")
+
+        # Read info
+        if section == "NAME":
+            name = words[1]
+        elif section == "OBJSENSE":
+            objsense = read_objsense(f)
+        elif section == "OBJNAME":
+            objective_name = read_objname(f)
+        elif section == "ROWS":
+            objective_name, con_names, con_types = read_rows(f, objective_name, fixed)
+            n_con = len(con_types)
+        elif section == "COLUMNS":
+            var_names, c, A, var_types = read_columns(f, objective_name, con_names, fixed)
+        elif section == "RHS":
+            b, c0 = read_rhs(f, objective_name, con_names, fixed)
+        elif section == "RANGES":
+            A, b, con_types = read_ranges(f, A, b, con_names, con_types, fixed)
+            n_con = len(con_types)
+        elif section == "BOUNDS":
+            bounds, var_types = read_bounds(f, var_names, var_types, fixed)
+        elif section == "SOS":
+            raise Exception("SOS section reader not ready yet")
+
+        sections[section] = True
+
+    if not sections["ENDATA"]:
+        raise Exception("No ENDATA section in the file")
+
+    return var_types, bounds, objsense, np.array(c), np.array(c0), np.array(A), np.array(b), con_types
+
+
+def read_objsense(f):
+    objective_sense = ["MIN", "MAX"]
+    line = f.readline()
+    while line.strip() == "" or line[0] == '*':
+        line = f.readline()
+    if not (line.strip() in objective_sense):
+        raise Exception("No valid information in OBJSENSE section")
+    f.seek(f.tell())
+    if line.strip() == "MIN":
+        return 'min'
+    else:
+        return 'max'
+    
+    
+def read_objname(f):
+    line = f.readline()
+    while line.strip() == "" or line[0] == '*':
+        line = f.readline()
+    f.seek(f.tell())
+    return line.strip()
+
+
+def read_rows(f, objective_name, fixed):
+    pos = f.tell()
+    objective = False
+    con_names = dict()
+    con_types = []  # 1 : <=, 2 : ==, 3 : >=
+    n_con = 0
+
+    line = f.readline()
+    while line.strip() == "" or line[1] == '*':
+        line = f.readline()
+    while line[0] == ' ':
+        pos = f.tell()
+        if fixed:
+            type_tmp = line[1:2].strip()
+            name = line[4:min(len(line), 11)].strip()
+        else:
+            type_tmp, name = line.split()
+            type_tmp = type_tmp.upper()
+
+        if type_tmp == "N":
+            if objective:
+                raise Exception("MultiObjectives")
+            else:
+                objective = True
+                objective_name = name
+        else:
+            if type_tmp == "G":
+                con_types.append(2)
+            elif type_tmp == "L":
+                con_types.append(0)
+            elif type_tmp == "E":
+                con_types.append(1)
+            else:
+                raise Exception("Error in type of the row")
+            con_names[name] = n_con
+            n_con += 1
+
+        line = f.readline()
+        while line.strip() == "" or line[0] == '*':
+            pos = f.tell()
+            line = f.readline()
+
+    f.seek(pos)
+    return objective_name, con_names, con_types
+
+
+def read_columns(f, objective_name, con_names, fixed):
+    pos = f.tell()
+    var_names = dict()
+    var_types = []  # true : float   false : int
+    n_con = len(con_names.keys())
+    A = None
+    init_var = np.zeros((n_con, 1))
+    c = []
+    n_var = 0
+    is_float = True
+
+    line = f.readline()
+    while line.strip() == "" or line[0] == '*':
+        line = f.readline()
+    while line[0] == ' ':
+        pos = f.tell()
+        words = line.split()
+        len_words = len(words)
+
+        # MARKER for INT
+        if words[1] == "'MARKER'":
+            ind = 2
+            if fixed:
+                ind = 3
+            if words[ind] == "'INTORG'":
+                is_float = False
+            elif words[ind] == "'INTEND'":
+                is_float = True
+            else:
+                raise Exception("Unknown MARKER in MPS file")
+        else:
+            name = words[0]
+            if name not in var_names.keys():
+                var_names[name] = n_var
+                n_var += 1
+                if A is None:
+                    A = np.copy(init_var)
+                else:
+                    A = np.concatenate((A, init_var), axis=1)
+                var_types.append(is_float)
+                c.append(0.0)
+
+        for i in range(1, len_words-1, 2):
+            if words[i] == objective_name:
+                # Case add to objective
+                c[var_names[name]] = float(words[i + 1])
+            else:
+                # Case add to A
+                A[con_names[words[i]], var_names[name]] = float(words[i + 1])
+
+        line = f.readline()
+        while line.strip() == "" or line[1] == '*':
+            pos = f.tell()
+            line = f.readline()
+
+    f.seek(pos)
+    return var_names, c, A, var_types
+
+
+def read_rhs(f, objective_name, con_names, fixed):
+    pos = f.tell()
+    b = np.zeros(len(con_names.keys()))
+    c0 = 0.0
+
+    line = f.readline()
+    while line.strip() == "" or line[0] == '*':
+        line = f.readline()
+    while line[0] == ' ':
+        pos = f.tell()
+        words = line.split()
+        len_words = len(words)
+
+        for i in range(1, len_words-1, 2):
+            name = words[i]
+            if name == objective_name:
+                if c0 != 0:
+                    raise Exception("Multiple presence of ", objective_name, " in RHS")
+                else:
+                    c0 = - float(words[i + 1])
+            elif name != "":
+                if b[con_names[name]] != 0:
+                    raise Exception("Multiple presence of ", name, " in RHS")
+                else:
+                    b[con_names[name]] = float(words[i + 1])
+
+        line = f.readline()
+        while line.strip() == "" or line[0] == '*':
+            pos = f.tell()
+            line = f.readline()
+
+    f.seek(pos)
+    return b, c0
+
+
+def read_ranges(f, A_init, b_init, con_names, con_types_init, fixed):
+    A = np.copy(A_init)
+    b = np.copy(b_init)
+    con_types = np.copy(con_types_init)
+    pos = f.tell()
+
+    line = f.readline()
+    while line.strip() == "" or line[0] == '*':
+        line = f.readline()
+    while line[0] == ' ':
+        pos = f.tell()
+        words = line.split()
+        len_words = len(words)
+
+        for i in range(1, len_words-1, 2):
+            name = words[i]
+            if name != "":
+                if con_types[con_names[name]] == 2:
+                    raise Exception("Range on an equality constraint")
+                elif con_types[con_names[name]] == 1:
+                    con_types.append(3)
+                    b0 = -abs(float(words[i + 1]))
+                elif con_types[con_names[name]] == 3:
+                    con_types.append(1)
+                    b0 = abs(float(words[i + 1]))
+                else:
+                    raise Exception("Should never happen")
+    A = np.vstack((A, A[con_names[name], :]))
+    b.append(b0)
+
+    line = f.readline()
+
+    while line.strip() == "" or line[0] == '*':
+        pos = f.tell()
+        line = f.readline()
+
+    f.seek(pos)
+    return A, b, con_types
+
+
+def read_bounds(f, var_names, var_typesinit, fixed):
+    var_types = np.copy(var_typesinit)
+    pos = f.tell()
+    bounds = [(-np.inf, np.inf) for i in range(len(var_names.keys()))]
+
+    line = f.readline()
+    while line.strip() == "" or line[0] == '*':
+        line = f.readline()
+    while line[0] == ' ':
+        pos = f.tell()
+        words = line.split()
+
+        bound_type = words[0]
+        if not fixed:
+            bound_type = bound_type.upper()
+
+        name = words[2]
+
+        if bound_type == "FR":
+            bounds[var_names[name]] = (-np.inf, np.inf)
+        elif bound_type == "MI":
+            # Lower bound -inf
+            if np.isfinite(bounds[var_names[name]][1]):
+                bounds[var_names[name]] = (-np.inf, bounds[var_names[name]][1])
+            else:
+                bounds[var_names[name]] = (-np.inf, 0.0)
+        elif bound_type == "PL":
+            # Default value
+            bounds[var_names[name]] = (bounds[var_names[name]][0], np.inf)
+        elif bound_type == "BV":
+            # Binary variable
+            bounds[var_names[name]] = (0.0, 1.0)
+            var_types[var_names[name]] = False
+        elif bound_type == "SC":
+            # Semi-continuous variable
+            raise Exception("SC bound not ready yet")
+        elif bound_type == "LO":
+            # Lower bound
+            bound_val = float(words[3])
+            bounds[var_names[name]] = (bound_val, bounds[var_names[name]][1])
+        elif bound_type == "UP":
+            # Upper bound
+            bound_val = float(words[3])
+            bounds[var_names[name]] = (bounds[var_names[name]][0], bound_val)
+        elif bound_type == "FX":
+            # Fixed variable
+            bound_val = float(words[3])
+            bounds[var_names[name]] = (bound_val, bound_val)
+        elif bound_type == "LI":
+            # Integer variable / Lower bound
+            bound_val = float(words[3])
+            bounds[var_names[name]] = (bound_val, bounds[var_names[name]][1])
+            var_types[var_names[name]] = False
+        elif bound_type == "UI":
+            # Integer variable / Upper bound
+            bound_val = float(words[3])
+            bounds[var_names[name]] = (bounds[var_names[name]][0], bound_val)
+            var_types[var_names[name]] = False
+        else:
+            raise Exception("Unknown bound type ", bound_type)
+
+        line = f.readline()
+        while line.strip() == "" or line[0] == '*':
+            pos = f.tell()
+            line = f.readline()
+
+    f.seek(pos)
+    return bounds, var_types
