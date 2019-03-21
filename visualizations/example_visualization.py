@@ -17,8 +17,7 @@ beta = np.array([10.0, 1.0])
 objective_function = lambda x: 1 / 2 * np.dot(np.dot(x.T, H), x) + np.dot(q.T, x)
 gradient = lambda x: np.dot(H, x) + q
 
-# activation_types = ['sin', 'tanh', 'exp', 'pwl', 'identity']
-activation_types = ['tanh']
+activation_types = ['sin', 'tanh', 'exp', 'pwl', 'identity']
 
 for activation_type in activation_types:
     solver = HopfieldSolver(max_iterations=k_max, activation_type=activation_type)

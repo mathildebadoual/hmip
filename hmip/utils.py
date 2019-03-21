@@ -80,9 +80,6 @@ def proxy_distance_vector_identity(x, beta=None):
     return id
 
 
-# TODO(Mathilde): find a librairy with the activation functions -> keras?
-
-
 def activation_tanh(x, beta):
     """
 
@@ -185,8 +182,6 @@ def inverse_activation_tanh(x, beta):
     :param beta: (np.array) size of x, parameter of the function
     :return:
     """
-
-    print(x)
     tanh = np.divide(np.arctanh(2 * x - 1), 2 * beta) + 1 / 2
     return tanh
 
