@@ -6,7 +6,7 @@ import math
 class HopfieldSolver():
     def __init__(self, activation_function=utils.proxy_distance_vector_sin,
                  inverse_activation_function=utils.activation_sin, gamma=0.9, theta=0.1,
-                 ascent_stop_criterion=0.1, absorption_criterion=None, max_iterations=100, beta=1,
+                 ascent_stop_criterion=0.1, absorption_criterion=False, max_iterations=100, beta=1,
                  stopping_criterion_type='gradient', direction_type='soft_binary', step_type='classic',
                  initial_ascent_type='ascent', precision_stopping_criterion=10 ** -6):
 
@@ -28,10 +28,9 @@ class HopfieldSolver():
     def setup_optimization_problem(self, objective_function, gradient, lb, ub, binary_indicator, x_0=None,
                                    smoothness_coef=None):
         # TODO: Find how to chose smoothness_coef when using barrier method
-        self.problem = {'objective_function': objective_function, 'gradient': gradient, 'lb': lb, 'ub': ub,
-             'binary_indicator': binary_indicator,
-             'smoothness_coef': smoothness_coef, 'x_0': x_0, 'dim_problem': len(binary_indicator)}
-        print(self.problem['lb'])
+        self.problem = dict({'objective_function': objective_function, 'gradient': gradient, 'lb': lb, 'ub': ub,
+                             'binary_indicator': binary_indicator,
+                             'smoothness_coef': smoothness_coef, 'x_0': x_0, 'dim_problem': len(binary_indicator)})
         self.problem['x_0'] = self._compute_x_0(x_0)
 
     def solve_optimization_problem(self):
@@ -78,7 +77,7 @@ class HopfieldSolver():
                 step_size[k] = alpha
                 f_val_hist[k + 1] = self.problem['objective_function'](x[:, k + 1])
 
-            if self.absorption_criterion is not None:
+            if self.absorption_criterion:
                 x[:, k + 1] = self._absorb_solution_to_limits(x[:, k + 1])
 
             k += 1
@@ -122,7 +121,8 @@ class HopfieldSolver():
                 x_0 = x_0 + (1 / self.problem['smoothness_coef']) * grad_f
             elif self.initial_ascent_type is 'binary_neutral_ascent':
                 x_0 = x_0 + (1 / self.problem['smoothness_coef']) * np.multiply(grad_f,
-                                                                         np.ones(n) - self.problem['binary_indicator'])
+                                                                                np.ones(n) - self.problem[
+                                                                                    'binary_indicator'])
             iterations += 1
 
         return self._inverse_activation(x_0, self.problem['ub'] - self.ascent_stop_criterion,
@@ -140,13 +140,13 @@ class HopfieldSolver():
                 return False
 
     def _find_direction(self, x, grad_f, convergence_to_binary):
+        # TODO(Mathilde): Here sometimes there is no solution
         n = np.size(x)
         binary_absorption_mask = self._compute_binary_absorption_mask(x)
 
         # classic gradient
         if self.direction_type is 'classic' or self.direction_type is 'stochastic' or convergence_to_binary < (
-                1 / n) * (
-                10 ** -6):
+                1 / n) * (10 ** -6):
             if not self.absorption_criterion:
                 direction = - grad_f
             else:
@@ -156,16 +156,18 @@ class HopfieldSolver():
                 # TODO(Mathilde): make 0.3 as a parameter
                 direction = - np.multiply(direction, (np.random.uniform(0, 1, n) - 0.3))
 
-        elif (self.direction_type is 'binary' or self.direction_type is 'soft_binary') and convergence_to_binary >= (
+        elif (self.direction_type is 'binary' or self.direction_type is 'soft_binary') or convergence_to_binary >= (
                 1 / n) * (
                 10 ** -6):
             if self.direction_type is 'soft_binary':
                 b = np.multiply(
-                    self._activation(x, self.problem['ub'], self.problem['lb']) + 1 / 2 * (self.problem['lb'] - self.problem['ub']),
+                    self._activation(x, self.problem['ub'], self.problem['lb']) + 1 / 2 * (
+                                self.problem['lb'] - self.problem['ub']),
                     self.problem['binary_indicator'])
                 h = - grad_f
             elif self.direction_type is 'binary':
-                b = np.multiply(np.sign(x + 1 / 2 * (self.problem['lb'] - self.problem['ub'])), self.problem['binary_indicator'])
+                b = np.multiply(np.sign(x + 1 / 2 * (self.problem['lb'] - self.problem['ub'])),
+                                self.problem['binary_indicator'])
                 h = - grad_f
 
             g = - np.multiply(self._proxy_distance_vector(x), grad_f)

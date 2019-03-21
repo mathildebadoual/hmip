@@ -49,6 +49,7 @@ def proxy_distance_vector_sin(x, beta):
     :param beta: (np.array) size of x, parameter of the function
     :return:
     """
+    print(x)
     sin = 2 * np.multiply(np.multiply(beta, np.sqrt(x)), np.sqrt(1 - x))
     return sin
 
