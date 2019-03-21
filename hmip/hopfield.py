@@ -7,7 +7,7 @@ class HopfieldSolver():
     def __init__(self, activation_function=utils.activation_pwl,
                  inverse_activation_function=utils.inverse_activation_pwl,
                  proxy_distance_vector=utils.proxy_distance_vector_pwl,
-                 gamma=0.9, theta=0.1, ascent_stop_criterion=0.001, absorption_criterion=None, max_iterations=100,
+                 gamma=0.9, theta=0.1, ascent_stop_criterion=0.001, absorption_criterion=0.001, max_iterations=100,
                  stopping_criterion_type='gradient', direction_type='classic', step_type='classic',
                  initial_ascent_type='ascent', precision_stopping_criterion=10 ** -6):
 
@@ -45,7 +45,7 @@ class HopfieldSolver():
         if self.problem is None:
             raise Exception('Problem is not set')
 
-        x = np.ones((self.problem['dim_problem'], self.max_iterations))
+        x = np.nan * np.ones((self.problem['dim_problem'], self.max_iterations))
         x_h = np.ones((self.problem['dim_problem'], self.max_iterations))
         f_val_hist = np.ones(self.max_iterations)
         step_size = np.ones(self.max_iterations)
@@ -77,8 +77,7 @@ class HopfieldSolver():
                 step_size[k] = 2 * alpha
 
             else:
-                if alpha is None:
-                    alpha = self._alpha_hop(x[:, k], grad_f, k, direction)
+                alpha = self._alpha_hop(x[:, k], grad_f, k, direction)
                 x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(x_h[:, k], alpha, direction)
                 step_size[k] = alpha
                 f_val_hist[k + 1] = self.problem['objective_function'](x[:, k + 1])
@@ -118,7 +117,7 @@ class HopfieldSolver():
         if self.problem is None:
             raise Exception('Problem is not set')
         if x_0 is None or not utils.is_in_box(x_0, self.problem['ub'], self.problem['lb']):
-            return self.problem['lb'] + (self.problem['ub'] - self.problem['lb']) / 2
+            x_0 = self.problem['lb'] + (self.problem['ub'] - self.problem['lb']) / 2
         n = len(x_0)
         iterations = 0
         max_iterations = 10
