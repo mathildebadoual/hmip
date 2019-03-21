@@ -7,7 +7,7 @@ class HopfieldSolver():
     def __init__(self, activation_function=utils.activation_pwl,
                  inverse_activation_function=utils.inverse_activation_pwl,
                  proxy_distance_vector=utils.proxy_distance_vector_pwl,
-                 gamma=0.9, theta=0.1, ascent_stop_criterion=0.001, absorption_criterion=False, max_iterations=100,
+                 gamma=0.9, theta=0.1, ascent_stop_criterion=0.001, absorption_criterion=None, max_iterations=100,
                  stopping_criterion_type='gradient', direction_type='classic', step_type='classic',
                  initial_ascent_type='ascent', precision_stopping_criterion=10 ** -6):
 
@@ -83,7 +83,7 @@ class HopfieldSolver():
                 step_size[k] = alpha
                 f_val_hist[k + 1] = self.problem['objective_function'](x[:, k + 1])
 
-            if self.absorption_criterion:
+            if self.absorption_criterion is not None:
                 x[:, k + 1] = self._absorb_solution_to_limits(x[:, k + 1])
 
             k += 1
@@ -163,7 +163,7 @@ class HopfieldSolver():
         # classic gradient
         if self.direction_type is 'classic' or self.direction_type is 'stochastic' or convergence_to_binary < (
                 1 / n) * (10 ** -6):
-            if not self.absorption_criterion:
+            if self.absorption_criterion is not None:
                 direction = - grad_f
             else:
                 direction = - np.multiply(binary_absorption_mask, grad_f)
@@ -188,7 +188,7 @@ class HopfieldSolver():
 
             g = - np.multiply(self._proxy_distance_vector(x), grad_f)
 
-            if self.absorption_criterion:
+            if self.absorption_criterion is not None:
                 b = np.multiply(binary_absorption_mask, b)
                 h = np.multiply(binary_absorption_mask, h)
 
