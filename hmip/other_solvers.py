@@ -1,7 +1,4 @@
-import numpy as np
-import hmip.utils as utils
 import cvxpy as cvx
-from hmip.hopfield import objective_function
 
 
 def cvxpy_solver(H, q, lb, ub, binary_indicator, solver=None):

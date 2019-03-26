@@ -37,7 +37,7 @@ class TestProxyDistanceVector(unittest.TestCase):
         x = np.ones(self.dim)
         beta = np.ones(self.dim)
         output = utils.proxy_distance_vector_sin(x, beta)
-        self.assertTrue(np.array_equal(output, np.zeros(self.dim)))
+        self.assertTrue(np.allclose(output, np.zeros(self.dim), atol=1e-2))
 
     def test_exp(self):
         x = 1 / 2 * np.ones(self.dim)
@@ -96,10 +96,10 @@ class TestInverseActivationFunction(unittest.TestCase):
         self.dim = 10
 
     def test_tanh(self):
-        x = 1/2 * np.ones(2)
-        beta = [[1, 0], [0, 1]]
+        x = 1/2 * np.ones(self.dim)
+        beta = np.ones(self.dim)
         output = utils.inverse_activation_tanh(x, beta)
-        self.assertTrue(np.array_equal(output[0], x))
+        self.assertTrue(np.array_equal(output, x))
 
     def test_pwl(self):
         x = 1 / 2 * np.ones(self.dim)
@@ -176,4 +176,4 @@ class TestParserMPSfiles(unittest.TestCase):
         self.assertTrue(np.array_equal(con_types, [0, 2, 1]))
         self.assertTrue(np.array_equal(var_types, [True, True, True]))
         self.assertEqual(objsense, 'min')
-        self.assertTrue(np.array_equal(bounds, np.array([(0, 4), (-1, 1)])))
+        self.assertTrue(np.array_equal(bounds, np.array([(- np.inf, 4), (-1, 1), (- np.inf, np.inf)])))

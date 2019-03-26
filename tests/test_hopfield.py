@@ -100,47 +100,16 @@ class TestOthers(unittest.TestCase):
     def test_activation_function(self):
         x_0 = self.lb + (self.ub - self.lb) / 2
         beta = 0.5 * x_0
-        activation_functions = [utils.activation_pwl, utils.activation_exp, utils.activation_sin,
-                                utils.activation_identity, utils.activation_tanh]
+        activation_types = ['pwl', 'exp', 'sin', 'identity', 'tanh']
 
-        for activation_function in activation_functions:
-            solver = HopfieldSolver(max_iterations=self.k_max, activation_function=activation_function)
+        for activation_type in activation_types:
+            solver = HopfieldSolver(max_iterations=self.k_max, activation_type=activation_type)
             solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
                                               self.binary_indicator, x_0=x_0, beta=beta,
                                               smoothness_coef=self.smoothness_coefficient)
             self.assertTrue(np.array_equal(x_0, solver._activation(x_0, self.lb, self.ub)))
 
-    def test_inverse_activation_function(self):
-        x_0 = self.lb + (self.ub - self.lb) / 2
-        beta = 0.5 * x_0
-        inverse_activation_functions = [utils.inverse_activation_pwl, utils.inverse_activation_exp,
-                                        utils.inverse_activation_sin, utils.inverse_activation_identity,
-                                        utils.inverse_activation_tanh]
 
-        for inverse_activation_function in inverse_activation_functions:
-            solver = HopfieldSolver(max_iterations=self.k_max, inverse_activation_function=inverse_activation_function)
-            solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                              self.binary_indicator, x_0=x_0, beta=beta,
-                                              smoothness_coef=self.smoothness_coefficient)
-            self.assertTrue(np.array_equal(x_0, solver._inverse_activation(x_0, self.lb, self.ub)))
-
-        self.assertTrue(False)
-
-    def test_proxy_distance_vector(self):
-        x_0 = self.lb + (self.ub - self.lb) / 2
-        beta = 0.5 * x_0
-        proxy_distance_vectors = [utils.proxy_distance_vector_pwl, utils.proxy_distance_vector_exp,
-                                  utils.proxy_distance_vector_sin, utils.proxy_distance_vector_identity,
-                                  utils.proxy_distance_vector_tanh]
-
-        outputs = [0.25, 0.125, 0.25, 0, 0.25]
-
-        for i in range(len(proxy_distance_vectors)):
-            solver = HopfieldSolver(max_iterations=self.k_max, proxy_distance_vector=proxy_distance_vectors[i])
-            solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                              self.binary_indicator, x_0=x_0, beta=beta,
-                                              smoothness_coef=self.smoothness_coefficient)
-            self.assertAlmostEqual(outputs[i], solver._proxy_distance_vector(x_0)[0], 3)
 
 #
 #     def test_compute_binary_absorption_mask(self):
