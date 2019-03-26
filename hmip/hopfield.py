@@ -25,10 +25,11 @@ class HopfieldSolver():
         self.problem = None
         self.beta = None
 
-    def setup_optimization_problem(self, objective_function, gradient, lb, ub, binary_indicator, x_0=None,
+    def setup_optimization_problem(self, objective_function, gradient, lb, ub, A, b, binary_indicator, x_0=None,
                                    smoothness_coef=None, beta=None):
         # TODO: Find how to chose smoothness_coef when using barrier method
         self.problem = dict({'objective_function': objective_function, 'gradient': gradient, 'lb': lb, 'ub': ub,
+                             'A': A, 'b': b,
                              'binary_indicator': binary_indicator,
                              'smoothness_coef': smoothness_coef, 'x_0': x_0, 'dim_problem': len(binary_indicator)})
         if type(beta) == int:
