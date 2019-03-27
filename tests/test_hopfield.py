@@ -13,6 +13,8 @@ class TestHopfield(unittest.TestCase):
         self.beta = 1
         self.ub = np.array([1, 1])
         self.lb = np.array([0, 0])
+        self.A = np.array([[0, 0], [0, 0]])
+        self.b = np.array([0, 0])
         self.absorption = 1
         self.step_type = 'classic'
         self.objective_function = lambda x: 1 / 2 * np.dot(np.dot(x.T, self.H), x) + np.dot(self.q.T, x)
@@ -29,7 +31,7 @@ class TestHopfield(unittest.TestCase):
     def test_hopfield_default(self):
         solver = HopfieldSolver(max_iterations=self.k_max)
         solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                          self.binary_indicator,
+                                          self.A, self.b, self.binary_indicator,
                                           smoothness_coef=self.smoothness_coefficient)
         x, x_h, f_val_hist, step_size = solver.solve_optimization_problem()
         self.assertEqual(x.shape[0], self.q.shape[0])
@@ -38,7 +40,7 @@ class TestHopfield(unittest.TestCase):
     def test_hopfield_step_type_classic(self):
         solver = HopfieldSolver(max_iterations=self.k_max, step_type='classic')
         solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                          self.binary_indicator,
+                                          self.A, self.b, self.binary_indicator,
                                           smoothness_coef=self.smoothness_coefficient)
         x, x_h, f_val_hist, step_size = solver.solve_optimization_problem()
         self.assertEqual(x.shape[0], self.q.shape[0])
@@ -47,7 +49,7 @@ class TestHopfield(unittest.TestCase):
     def test_hopfield_step_type_armijo(self):
         solver = HopfieldSolver(max_iterations=self.k_max, step_type='armijo')
         solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                          self.binary_indicator,
+                                          self.A, self.b, self.binary_indicator,
                                           smoothness_coef=self.smoothness_coefficient)
         x, x_h, f_val_hist, step_size = solver.solve_optimization_problem()
         self.assertEqual(x.shape[0], self.q.shape[0])
@@ -56,7 +58,7 @@ class TestHopfield(unittest.TestCase):
     def test_hopfield_with_absorption(self):
         solver = HopfieldSolver(max_iterations=self.k_max, step_type='classic', absorption_criterion=True)
         solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                          self.binary_indicator,
+                                          self.A, self.b, self.binary_indicator,
                                           smoothness_coef=self.smoothness_coefficient)
         x, x_h, f_val_hist, step_size = solver.solve_optimization_problem()
         self.assertEqual(x.shape[0], self.q.shape[0])
@@ -72,6 +74,8 @@ class TestOthers(unittest.TestCase):
         self.beta = 1
         self.ub = np.array([1, 1])
         self.lb = np.array([0, 0])
+        self.A = np.array([[0, 0], [0, 0]])
+        self.b = np.array([0, 0])
         self.absorption = 1
         self.step_type = 'classic'
         self.x_0 = self.lb + (self.ub - self.lb) / 2
@@ -86,14 +90,14 @@ class TestOthers(unittest.TestCase):
     def test_create_initial_ascent_ascent(self):
         solver = HopfieldSolver(max_iterations=self.k_max)
         solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                          self.binary_indicator,
+                                          self.A, self.b, self.binary_indicator,
                                           smoothness_coef=self.smoothness_coefficient)
         self.assertTrue(np.array_equal(self.x_0.shape, solver._compute_x_0(self.x_0).shape))
 
     def test_create_initial_ascent_binary_neutral_ascent(self):
         solver = HopfieldSolver(max_iterations=self.k_max, initial_ascent_type='binary_neutral_ascent')
         solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                          self.binary_indicator,
+                                          self.A, self.b, self.binary_indicator,
                                           smoothness_coef=self.smoothness_coefficient)
         self.assertTrue(np.array_equal(self.x_0.shape, solver._compute_x_0(self.x_0).shape))
 
@@ -105,7 +109,7 @@ class TestOthers(unittest.TestCase):
         for activation_type in activation_types:
             solver = HopfieldSolver(max_iterations=self.k_max, activation_type=activation_type)
             solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                              self.binary_indicator, x_0=x_0, beta=beta,
+                                              self.A, self.b, self.binary_indicator, x_0=x_0, beta=beta,
                                               smoothness_coef=self.smoothness_coefficient)
             self.assertTrue(np.array_equal(x_0, solver._activation(x_0, self.lb, self.ub)))
 

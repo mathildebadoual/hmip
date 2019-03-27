@@ -12,6 +12,8 @@ class TestCvxpy(unittest.TestCase):
         self.binary_indicator = np.array([0, 1])
         self.ub = np.array([1, 1])
         self.lb = np.array([0, 0])
+        self.A = np.array([[0, 0], [0, 0]])
+        self.b = np.array([0, 0])
         self.k_max = 200
         self.objective_function = lambda x: 1 / 2 * np.dot(np.dot(x.T, self.H), x) + np.dot(self.q.T, x)
         self.gradient = lambda x: np.dot(self.H, x) + self.q
@@ -25,7 +27,7 @@ class TestCvxpy(unittest.TestCase):
         x_cvxpy = other_solvers.cvxpy_solver(self.H, self.q, self.lb, self.ub, self.binary_indicator)
         solver = HopfieldSolver(max_iterations=self.k_max)
         solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
-                                          self.binary_indicator,
+                                          self.A, self.b, self.binary_indicator,
                                           smoothness_coef=self.smoothness_coefficient)
         x_hopfield, _, _, _ = solver.solve_optimization_problem()
         self.assertTrue(np.allclose(x_cvxpy, x_hopfield[:, -1], rtol=0.1), 2)
