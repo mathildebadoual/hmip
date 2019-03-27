@@ -6,4 +6,3 @@ jupyter
 matplotlib
 sympy
 numpy >= 1.14
-cvxopt

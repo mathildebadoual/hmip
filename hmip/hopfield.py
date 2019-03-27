@@ -1,6 +1,7 @@
 import numpy as np
 import hmip.utils as utils
 import math
+import cvxpy as cvx
 
 
 class HopfieldSolver():
@@ -25,10 +26,11 @@ class HopfieldSolver():
         self.problem = None
         self.beta = None
 
-    def setup_optimization_problem(self, objective_function, gradient, lb, ub, binary_indicator, x_0=None,
+    def setup_optimization_problem(self, objective_function, gradient, lb, ub, A, b, binary_indicator, x_0=None,
                                    smoothness_coef=None, beta=None):
         # TODO: Find how to chose smoothness_coef when using barrier method
         self.problem = dict({'objective_function': objective_function, 'gradient': gradient, 'lb': lb, 'ub': ub,
+                             'A': A, 'b': b,
                              'binary_indicator': binary_indicator,
                              'smoothness_coef': smoothness_coef, 'x_0': x_0, 'dim_problem': len(binary_indicator)})
         if type(beta) == int:
@@ -86,6 +88,38 @@ class HopfieldSolver():
         print('Candidate solution found with %s number of iterations.' % k)
         return x, x_h, f_val_hist, step_size
 
+    def _solve_dual_gradient_ascent(self, dual_variable_init, step_size, stopping_criterion=10 ** (-2)):
+        n = self.problem['dim_problem']
+
+        # create the dual function:
+        A = self.problem['A'].copy()
+        b = self.problem['b'].copy()
+        lb = self.problem['lb'].copy()
+        ub = self.problem['ub'].copy()
+        B = np.concatenate((A, np.identity(n), -np.identity(n)), axis=0)
+        c = np.concatenate((b, ub, lb), axis=0)
+
+        def inequality_constraint(z):
+            return np.dot(B, z) - c
+
+        def dual_function(x, y):
+            return self.problem['objective_function'](x) + np.dot(y.T, inequality_constraint(x))
+
+        dual_variable = dual_variable_init
+        k = 0
+        while True:
+            x = cvx.Variable(n)
+            objective = cvx.Minimize(dual_function(x, dual_variable))
+            constraints = []
+            problem = cvx.Problem(objective, constraints)
+            problem.solve()
+            dual_variable_previous = np.copy(dual_variable)
+            dual_variable += step_size ** k * np.dot(np.ones(n).T, self.problem['objective_function'](x.value))
+            k += 1
+            if np.norm(dual_variable - dual_variable_previous) < stopping_criterion:
+                break
+        return dual_variable
+
     def _hopfield_update(self, x_h, alpha, direction):
         if self.problem is None:
             raise Exception('Problem is not set')
@@ -132,7 +166,7 @@ class HopfieldSolver():
             iterations += 1
 
         return self._activation(x_0, self.problem['ub'] - self.ascent_stop_criterion,
-                                        self.problem['lb'] + self.ascent_stop_criterion)
+                                self.problem['lb'] + self.ascent_stop_criterion)
 
     def _stopping_criterion_met(self, x, grad_f, iterations):
         if self.problem is None:
@@ -153,7 +187,6 @@ class HopfieldSolver():
         # TODO(Mathilde): Here sometimes there is no solution
         n = np.size(x)
         binary_absorption_mask = self._compute_binary_absorption_mask(x)
-
 
         # classic gradient
         if self.direction_type is 'classic' or self.direction_type is 'stochastic':
@@ -189,7 +222,7 @@ class HopfieldSolver():
             g = utils.normalize_array(g)
             w = self.gamma * b + (1 - self.gamma) * h
             y = max(0, - np.dot(g.T, w) + math.atan(self.theta) * np.sqrt(np.linalg.norm(w) ** 2 - np.dot(g.T, w) ** 2))
-            direction = np.multiply(w + y * g , binary_absorption_mask)
+            direction = np.multiply(w + y * g, binary_absorption_mask)
 
         else:
             raise Exception('Direction Type does not exist!')
