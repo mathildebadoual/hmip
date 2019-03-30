@@ -1,12 +1,12 @@
 import numpy as np
 import hmip.utils as utils
 import math
-import cvxpy as cvx
+from scipy.optimize import minimize, Bounds
 
 
 class HopfieldSolver():
     def __init__(self, activation_type='sin',
-                 gamma=0.95, theta=0.05, ascent_stop_criterion=0.06, absorption_criterion=0.05, max_iterations=100,
+                 gamma=0.95, theta=0.05, ascent_stop_criterion=0.06, absorption_criterion=None, max_iterations=100,
                  stopping_criterion_type='gradient', direction_type='soft_binary', step_type='classic',
                  initial_ascent_type='binary_neutral_ascent', precision_stopping_criterion=10 ** -6):
 
@@ -88,37 +88,43 @@ class HopfieldSolver():
         print('Candidate solution found with %s number of iterations.' % k)
         return x, x_h, f_val_hist, step_size
 
-    def _solve_dual_gradient_ascent(self, dual_variable_init, step_size, stopping_criterion=10 ** (-2)):
+    def _solve_dual_gradient_ascent(self, dual_variable_init, penalty_init, stopping_criterion=10 ** (-8),
+                                    gamma_1=5, gamma_2=0.5):
         n = self.problem['dim_problem']
 
         # create the dual function:
         A = self.problem['A'].copy()
         b = self.problem['b'].copy()
-        lb = self.problem['lb'].copy()
-        ub = self.problem['ub'].copy()
-        B = np.concatenate((A, np.identity(n), -np.identity(n)), axis=0)
-        c = np.concatenate((b, ub, lb), axis=0)
+        lb = np.concatenate((self.problem['lb'].copy(), np.zeros((n,))), axis=0)
+        ub = np.concatenate((self.problem['ub'].copy(), np.inf * np.ones((n,))), axis=0)
+        bounds = Bounds(lb, ub)
 
-        def inequality_constraint(z):
-            return np.dot(B, z) - c
+        def inequality_constraint(variables):
+            z, s = variables[:n], variables[n:]
+            return np.dot(A, z) - b - s
 
-        def dual_function(x, y):
-            return self.problem['objective_function'](x) + np.dot(y.T, inequality_constraint(x))
+        def dual_function(variables, dual_variable, penalty):
+            return self.problem['objective_function'](variables[:n]) + np.dot(dual_variable.T, inequality_constraint(
+                variables)) + penalty / 2 * np.linalg.norm(inequality_constraint(variables), 2)
 
         dual_variable = dual_variable_init
-        k = 0
-        while True:
-            x = cvx.Variable(n)
-            objective = cvx.Minimize(dual_function(x, dual_variable))
-            constraints = []
-            problem = cvx.Problem(objective, constraints)
-            problem.solve()
-            dual_variable_previous = np.copy(dual_variable)
-            dual_variable += step_size ** k * np.dot(np.ones(n).T, self.problem['objective_function'](x.value))
+        penalty = penalty_init
+        x_init = np.ones((2*n, 1))
+        prev_inequality_value = inequality_constraint(x_init)
+        list_dual = []
+        k = 1
+        while np.linalg.norm(prev_inequality_value, 2) > stopping_criterion and k < 20:
+            def dual_function_y(variables):
+                return dual_function(variables, dual_variable, penalty)
+            res = minimize(dual_function_y, x_init, method='L-BFGS-B', bounds=bounds)
+            list_dual.append(float(res.fun))
+            inequality_value = inequality_constraint(res.x)
+            dual_variable += penalty * inequality_value
+            if np.linalg.norm(inequality_value, ord=2) > gamma_2 * np.linalg.norm(prev_inequality_value, ord=2):
+                penalty += gamma_1 * penalty
+            prev_inequality_value = inequality_value
             k += 1
-            if np.norm(dual_variable - dual_variable_previous) < stopping_criterion:
-                break
-        return dual_variable
+        return dual_variable, penalty, list_dual
 
     def _hopfield_update(self, x_h, alpha, direction):
         if self.problem is None:

@@ -113,6 +113,13 @@ class TestOthers(unittest.TestCase):
                                               smoothness_coef=self.smoothness_coefficient)
             self.assertTrue(np.array_equal(x_0, solver._activation(x_0, self.lb, self.ub)))
 
+    def test_solve_dual_gradient_ascent(self):
+        solver = HopfieldSolver(max_iterations=self.k_max)
+        solver.setup_optimization_problem(self.objective_function, self.gradient, self.lb, self.ub,
+                                          self.A, self.b, self.binary_indicator,
+                                          smoothness_coef=self.smoothness_coefficient)
+        dual_variable_init = np.ones((3 * self.n, 1))
+        solver._solve_dual_gradient_ascent(dual_variable_init)
 
 
 #
