@@ -88,8 +88,8 @@ class HopfieldSolver():
         print('Candidate solution found with %s number of iterations.' % k)
         return x, x_h, f_val_hist, step_size
 
-    def _solve_dual_gradient_ascent(self, dual_variable_init, penalty_init, stopping_criterion=10 ** (-8),
-                                    gamma_1=5, gamma_2=0.5):
+    def _solve_dual_gradient_ascent(self, dual_variable_init, penalty_init, stopping_criterion=10 ** (-9),
+                                    gamma_1=5, gamma_2=0.2):
         n = self.problem['dim_problem']
 
         # create the dual function:
@@ -101,7 +101,7 @@ class HopfieldSolver():
 
         def inequality_constraint(variables):
             z, s = variables[:n], variables[n:]
-            return np.dot(A, z) - b - s
+            return np.dot(A, z) - b + s
 
         def dual_function(variables, dual_variable, penalty):
             return self.problem['objective_function'](variables[:n]) + np.dot(dual_variable.T, inequality_constraint(
@@ -109,21 +109,28 @@ class HopfieldSolver():
 
         dual_variable = dual_variable_init
         penalty = penalty_init
-        x_init = np.ones((2*n, 1))
+        x_init = 10 * np.ones((2*n, 1))
         prev_inequality_value = inequality_constraint(x_init)
         list_dual = []
         k = 1
-        while np.linalg.norm(prev_inequality_value, 2) > stopping_criterion and k < 20:
+        #
+        while k < 100:
             def dual_function_y(variables):
                 return dual_function(variables, dual_variable, penalty)
-            res = minimize(dual_function_y, x_init, method='L-BFGS-B', bounds=bounds)
-            list_dual.append(float(res.fun))
-            inequality_value = inequality_constraint(res.x)
+            result = minimize(dual_function_y, x_init, method='L-BFGS-B', bounds=bounds)
+            list_dual.append(float(result.fun))
+            # print('s = ', result.x[n:])
+            # print('Ax - b = ', np.dot(A, result.x[:n]) - b)
+            inequality_value = inequality_constraint(result.x)
             dual_variable += penalty * inequality_value
-            if np.linalg.norm(inequality_value, ord=2) > gamma_2 * np.linalg.norm(prev_inequality_value, ord=2):
-                penalty += gamma_1 * penalty
+            # if np.linalg.norm(inequality_value, ord=2) > gamma_2 * np.linalg.norm(prev_inequality_value, ord=2):
+            #     penalty += gamma_1 * penalty
             prev_inequality_value = inequality_value
             k += 1
+        print('With our method: ')
+        print('x = ', result.x[:n])
+        print('s = ', result.x[n:])
+        print('dual variable = ', dual_variable)
         return dual_variable, penalty, list_dual
 
     def _hopfield_update(self, x_h, alpha, direction):

@@ -3,21 +3,38 @@ from hmip.hopfield import HopfieldSolver
 import visualizations.utils_visuals as visuals
 import hmip.utils as utils
 import matplotlib.pyplot as plt
+import cvxpy as cvx
+
 
 H = np.array([[1, 1], [1, 10]])
 # H = np.array([[0, 0], [0, 0]])
 q = np.array([1, 6])
 # q = np.array([0, 0])
 k_max = 1000
-binary_indicator = np.array([1, 0])
+binary_indicator = np.array([0, 1])
 ub = np.array([1, 1])
 lb = np.array([0, 0])
 H = utils.make_symmetric(H)
 smoothness_coefficient = utils.smoothness_coefficient(H)
 beta = np.array([10.0, 1.0])
-A = np.array([[1, 0.2], [0, 0]])
-b = np.array([0.5, 0])
+A = np.array([[-1, -0.2], [0, 0]])
+b = np.array([-0.5, 0])
 n = 2
+
+# solve the relaxed problem with cvxpy
+
+x = cvx.Variable(n)
+constraints = [A * x - b <= 0]
+constraints += [lb - x <= 0, x - ub <= 0]
+objective = cvx.Minimize(cvx.quad_form(x, H) + q.T * x)
+problem = cvx.Problem(objective, constraints)
+problem.solve()
+print('With CVXPY: ')
+print('x = ', x.value)
+print('dual variable = ', constraints[0].dual_value)
+
+
+dual_variable = constraints[0].dual_value
 
 
 def objective_function(x):
@@ -30,12 +47,11 @@ def gradient(x):
 
 activation_type = 'sin'
 
-solver_dual = HopfieldSolver(max_iterations=k_max, activation_type=activation_type)
-solver_dual.setup_optimization_problem(objective_function, gradient, lb, ub, A, b, binary_indicator,
-                                       smoothness_coef=smoothness_coefficient, beta=beta)
-dual_variable, penalty, list_dual = solver_dual._solve_dual_gradient_ascent(np.zeros(2), 1)
-plt.plot(list_dual)
-print(dual_variable, penalty)
+# solver_dual = HopfieldSolver(max_iterations=k_max, activation_type=activation_type)
+# solver_dual.setup_optimization_problem(objective_function, gradient, lb, ub, A, b, binary_indicator,
+#                                        smoothness_coef=smoothness_coefficient, beta=beta)
+# dual_variable, penalty, list_dual = solver_dual._solve_dual_gradient_ascent(np.zeros(2), 1)
+# plt.plot(list_dual)
 
 # dual_variable = 100 * np.ones(2)
 
@@ -44,17 +60,25 @@ def inequality_constraint(z):
     return np.dot(A, z) - b
 
 
-def dual_function(x, dual_variable, penalty):
-    return objective_function(x) + np.dot(dual_variable.T, inequality_constraint(x)) + penalty / 2 * np.linalg.norm(
-        inequality_constraint(x), 2)
+# def dual_function(x, dual_variable, penalty):
+#     return objective_function(x) + np.dot(dual_variable.T, inequality_constraint(x)) + penalty / 2 * np.linalg.norm(
+#         inequality_constraint(x), 2)
+#
+#
+# def new_objective_function(x):
+#     return dual_function(x, dual_variable, penalty)
+#
+#
+# def new_gradient(x):
+#     return gradient(x) + np.dot(A.T, dual_variable) + penalty * np.dot(A.T, inequality_constraint(x))
 
 
 def new_objective_function(x):
-    return dual_function(x, dual_variable, penalty)
+    return objective_function(x) + np.dot(dual_variable.T, inequality_constraint(x))
 
 
 def new_gradient(x):
-    return gradient(x) + np.dot(A.T, dual_variable) + penalty * np.dot(A.T, inequality_constraint(x))
+    return gradient(x) + np.dot(A.T, dual_variable)
 
 
 solver = HopfieldSolver(max_iterations=k_max, activation_type=activation_type)
@@ -64,7 +88,7 @@ solver.setup_optimization_problem(new_objective_function, new_gradient, lb, ub, 
 x, x_h, f_val_hist, step_size = solver.solve_optimization_problem()
 
 visuals.plot_evolution_objective_function_2d(H, q, x, lb, ub, k_max, 'objective_function_2d.png', A=A, b=b,
-                                             dual=dual_variable, penalty=penalty)
+                                             dual=dual_variable, penalty=0)
 
 for i in range(x.shape[1]):
     if np.isnan(x[:, i]).all():
