@@ -2,12 +2,14 @@ import numpy as np
 import hmip.utils as utils
 import math
 from scipy.optimize import minimize, Bounds
+import cvxpy as cvx
+from scipy.optimize import LinearConstraint
 
 
 class HopfieldSolver():
     def __init__(self, activation_type='sin',
                  gamma=0.95, theta=0.05, ascent_stop_criterion=0.06, absorption_criterion=None, max_iterations=100,
-                 stopping_criterion_type='gradient', direction_type='soft_binary', step_type='classic',
+                 stopping_criterion_type='gradient', direction_type='classic', step_type='classic',
                  initial_ascent_type='binary_neutral_ascent', precision_stopping_criterion=10 ** -6):
 
         self.activation_function = getattr(utils, 'activation_' + activation_type)
@@ -26,13 +28,15 @@ class HopfieldSolver():
         self.problem = None
         self.beta = None
 
-    def setup_optimization_problem(self, objective_function, gradient, lb, ub, A, b, binary_indicator, x_0=None,
-                                   smoothness_coef=None, beta=None):
+    def setup_optimization_problem(self, objective_function, gradient, lb, ub,
+                                   binary_indicator, A_eq=None, b_eq=None, A_ineq=None, b_ineq=None, x_0=None,
+                                   smoothness_coef=None, beta=None, penalty_eq=0, penalty_ineq=0):
         # TODO: Find how to chose smoothness_coef when using barrier method
         self.problem = dict({'objective_function': objective_function, 'gradient': gradient, 'lb': lb, 'ub': ub,
-                             'A': A, 'b': b,
+                             'A_eq': A_eq, 'b_eq': b_eq, 'A_ineq': A_ineq, 'b_ineq': b_ineq,
                              'binary_indicator': binary_indicator,
-                             'smoothness_coef': smoothness_coef, 'x_0': x_0, 'dim_problem': len(binary_indicator)})
+                             'smoothness_coef': smoothness_coef, 'x_0': x_0, 'dim_problem': len(binary_indicator),
+                             'penalty_eq': penalty_eq, 'penalty_ineq': penalty_ineq})
         if type(beta) == int:
             self.beta = beta * np.ones(self.problem['dim_problem'])
         elif beta is None:
@@ -50,10 +54,109 @@ class HopfieldSolver():
         f_val_hist = np.nan * np.ones(self.max_iterations)
         step_size = np.nan * np.ones(self.max_iterations)
 
+        def gradient_wrt_slack_variable(variables):
+            return None
+
+        dual_variable_eq, dual_variable_ineq = self._solve_dual_gradient_ascent()
+
+        # if the problem has constraints:
+        if self.problem['A_ineq'] is not None and self.problem['b_ineq'] is not None and self.problem[
+            'A_eq'] is not None and self.problem['b_eq'] is not None:
+
+            def inequality_constraint(optimization_variable, slack_variable):
+                return np.dot(self.problem['A_ineq'], optimization_variable) - self.problem['b_ineq'] - slack_variable
+
+            def equality_constraint(optimization_variable):
+                return np.dot(self.problem['A_eq'], optimization_variable) - self.problem['b_eq']
+
+            def objective_function(variables):
+                optimization_variable, slack_variable = variables
+                main_function = self.problem['objective_function'](optimization_variable)
+                inequality_term = np.dot(dual_variable_ineq.T,
+                                         inequality_constraint(optimization_variable, slack_variable)) + self.problem[
+                                      'penalty_ineq'] / 2 * np.linalg.norm(
+                    inequality_constraint(optimization_variable, slack_variable), 2)
+                equality_term = np.dot(dual_variable_eq.T, equality_constraint(optimization_variable)) + self.problem[
+                    'penalty_eq'] / 2 * np.linalg.norm(equality_constraint(optimization_variable), 2)
+                return main_function + inequality_term + equality_term
+
+            def gradient(variables):
+                optimization_variable, slack_variable = variables
+                main_function = self.problem['gradient'](optimization_variable)
+                equality_term = np.dot(self.problem['A_eq'].T, dual_variable_eq) + self.problem[
+                    'penalty_eq'] * np.dot(self.problem['A_eq'].T, equality_constraint(optimization_variable))
+                inequality_term = np.dot(self.problem['A_ineq'].T, dual_variable_ineq) + self.problem[
+                    'penalty_ineq'] * np.dot(self.problem['A_ineq'].T,
+                                             inequality_constraint(optimization_variable, slack_variable))
+                return main_function + equality_term + inequality_term
+
+            def gradient_wrt_slack_variable(variables):
+                optimization_variable, slack_variable = variables
+                return - self.problem['penalty_ineq'] * inequality_constraint(optimization_variable,
+                                                                              slack_variable) - dual_variable_ineq
+
+        elif self.problem['A_ineq'] is not None and self.problem['b_ineq'] is not None and (
+                self.problem['A_eq'] is None or self.problem['b_eq'] is None):
+
+            def inequality_constraint(optimization_variable, slack_variable):
+                return np.dot(self.problem['A_ineq'], optimization_variable) - self.problem['b_ineq'] - slack_variable
+
+            def objective_function(variables):
+                optimization_variable, slack_variable = variables
+                main_function = self.problem['objective_function'](optimization_variable)
+                inequality_term = np.dot(dual_variable_ineq.T,
+                                         inequality_constraint(optimization_variable, slack_variable)) + self.problem[
+                                      'penalty_ineq'] / 2 * np.linalg.norm(
+                    inequality_constraint(optimization_variable, slack_variable), 2)
+                return main_function + inequality_term
+
+            def gradient(variables):
+                optimization_variable, slack_variable = variables
+                main_function = self.problem['gradient'](optimization_variable)
+                inequality_term = np.dot(self.problem['A_ineq'].T, dual_variable_ineq) + self.problem[
+                    'penalty_ineq'] * np.dot(self.problem['A_ineq'].T,
+                                             inequality_constraint(optimization_variable, slack_variable))
+                return main_function + inequality_term
+
+            def gradient_wrt_slack_variable(variables):
+                optimization_variable, slack_variable = variables
+                return - self.problem['penalty_ineq'] * inequality_constraint(optimization_variable,
+                                                                              slack_variable) - dual_variable_ineq
+
+        elif self.problem['A_eq'] is not None and self.problem['b_eq'] is not None and (
+                self.problem['A_ineq'] is None or self.problem['b_ineq'] is None):
+
+            def equality_constraint(optimization_variable):
+                return np.dot(self.problem['A_eq'], optimization_variable) - self.problem['b_eq']
+
+            def objective_function(variable):
+                main_function = self.problem['objective_function'](variable)
+                equality_term = np.dot(dual_variable_eq.T, equality_constraint(variable)) + self.problem[
+                    'penalty_eq'] / 2 * np.linalg.norm(equality_constraint(variable), 2)
+                return main_function + equality_term
+
+            def gradient(variable):
+                main_function = self.problem['gradient'](variable)
+                equality_term = np.dot(self.problem['A_eq'].T, dual_variable_eq) + self.problem[
+                    'penalty_eq'] * np.dot(self.problem['A_eq'].T, equality_constraint(variable))
+                return main_function + equality_term
+
+        else:
+            def objective_function(variable):
+                return self.problem['objective_function'](variable)
+
+            def gradient(variable):
+                return self.problem['gradient'](variable)
+
         x[:, 0] = self.problem['x_0']
         x_h[:, 0] = self._inverse_activation(self.problem['x_0'], self.problem['lb'], self.problem['ub'])
-        f_val_hist[0] = self.problem['objective_function'](x[:, 0])
-        grad_f = self.problem['gradient'](x[:, 0])
+        if self.problem['A_ineq'] is not None and self.problem['b_ineq'] is not None:
+            s = np.nan * np.ones((self.problem['dim_problem'], self.max_iterations))
+            s[:, 0] = 0 * self.problem['x_0']
+            f_val_hist[0] = objective_function((x[:, 0], s[:, 0]))
+            grad_f = gradient((x[:, 0], s[:, 0]))
+        else:
+            grad_f = gradient(x[:, 0])
         if np.linalg.norm(grad_f) == 0:
             grad_f = (self.problem['smoothness_coef'] / 10) * (np.random.rand(self.problem['dim_problem']) - 0.5)
         k = 0
@@ -69,69 +172,134 @@ class HopfieldSolver():
                 prox_dist = self._proxy_distance_vector(x[:, k])
                 while f_val_hist[k + 1] > f_val_hist[k] + alpha * np.dot(np.multiply(prox_dist, grad_f).T, direction):
                     x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(x_h[:, k], alpha, direction)
-                    f_val_hist[k + 1] = self.problem['objective_function'](x[:, k + 1])
+                    if self.problem['A_ineq'] is not None and self.problem['b_ineq'] is not None:
+                        s[:, k + 1] = np.min(np.zeros(len(s[:, k + 1])), s[:, k] - 1 / self.problem[
+                            'penalty_ineq'] * gradient_wrt_slack_variable((x[:, k + 1], s[:, k])))
+                        f_val_hist[k + 1] = objective_function((x[:, k + 1], s[:, k + 1]))
+                        grad_f = gradient((x[:, k + 1], s[:, k + 1]))
+                    else:
+                        f_val_hist[k + 1] = objective_function(x[:, k + 1])
+                        grad_f = gradient(x[:, k + 1])
                     alpha = alpha / 2
                 step_size[k] = 2 * alpha
 
             else:
                 alpha = self._alpha_hop(x[:, k], grad_f, k, direction)
                 x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(x_h[:, k], alpha, direction)
-                step_size[k] = alpha
-                f_val_hist[k + 1] = self.problem['objective_function'](x[:, k + 1])
+                if self.problem['A_ineq'] is not None and self.problem['b_ineq'] is not None:
+                    s[:, k + 1] = s[:, k + 1] = np.min(np.zeros(len(s[:, k + 1])), s[:, k] - 1 / self.problem[
+                        'penalty_ineq'] * gradient_wrt_slack_variable((x[:, k + 1], s[:, k])))
+                    f_val_hist[k + 1] = objective_function((x[:, k + 1], s[:, k + 1]))
+                    grad_f = gradient((x[:, k + 1], s[:, k + 1]))
+                else:
+                    f_val_hist[k + 1] = objective_function(x[:, k + 1])
+                    grad_f = gradient(x[:, k + 1])
+                    step_size[k] = alpha
 
             if self.absorption_criterion is not None:
                 x[:, k + 1] = self._absorb_solution_to_limits(x[:, k + 1])
 
             k += 1
-            grad_f = self.problem['gradient'](x[:, k])
 
         print('Candidate solution found with %s number of iterations.' % k)
-        return x, x_h, f_val_hist, step_size
+        if self.problem['A_ineq'] is not None and self.problem['b_ineq'] is not None:
+            return x, x_h, f_val_hist, step_size, dict(
+                {'slack_variable': s, 'dual_variable_eq': dual_variable_eq, 'dual_variable_ineq': dual_variable_eq})
+        else:
+            return x, x_h, f_val_hist, step_size, dict()
 
-    def _solve_dual_gradient_ascent(self, dual_variable_init, penalty_init, stopping_criterion=10 ** (-9),
-                                    gamma_1=5, gamma_2=0.2):
+    def _solve_dual_gradient_ascent(self):
         n = self.problem['dim_problem']
 
         # create the dual function:
-        A = self.problem['A'].copy()
-        b = self.problem['b'].copy()
-        lb = np.concatenate((self.problem['lb'].copy(), np.zeros((n,))), axis=0)
-        ub = np.concatenate((self.problem['ub'].copy(), np.inf * np.ones((n,))), axis=0)
-        bounds = Bounds(lb, ub)
+        if self.problem['A_ineq'] is not None and self.problem['b_ineq'] is not None and self.problem[
+            'A_eq'] is not None and self.problem['b_eq'] is not None:
+            lb = np.concatenate((self.problem['lb'].copy(), - np.inf * np.ones((n,))), axis=0)
+            ub = np.concatenate((self.problem['ub'].copy(), np.zeros((n,))), axis=0)
+            bounds = Bounds(lb, ub)
 
-        def inequality_constraint(variables):
-            z, s = variables[:n], variables[n:]
-            return np.dot(A, z) - b + s
+            def inequality_constraint(variables):
+                return np.dot(self.problem['A_ineq'], variables[:n]) - self.problem['b_ineq'] - variables[n:]
 
-        def dual_function(variables, dual_variable, penalty):
-            return self.problem['objective_function'](variables[:n]) + np.dot(dual_variable.T, inequality_constraint(
-                variables)) + penalty / 2 * np.linalg.norm(inequality_constraint(variables), 2)
+            def equality_constraint(variables):
+                return np.dot(self.problem['A_eq'], variables[:n]) - self.problem['b_eq']
 
-        dual_variable = dual_variable_init
-        penalty = penalty_init
-        x_init = 10 * np.ones((2*n, 1))
-        prev_inequality_value = inequality_constraint(x_init)
-        list_dual = []
-        k = 1
-        #
-        while k < 100:
-            def dual_function_y(variables):
-                return dual_function(variables, dual_variable, penalty)
-            result = minimize(dual_function_y, x_init, method='L-BFGS-B', bounds=bounds)
-            list_dual.append(float(result.fun))
-            # print('s = ', result.x[n:])
-            # print('Ax - b = ', np.dot(A, result.x[:n]) - b)
-            inequality_value = inequality_constraint(result.x)
-            dual_variable += penalty * inequality_value
-            # if np.linalg.norm(inequality_value, ord=2) > gamma_2 * np.linalg.norm(prev_inequality_value, ord=2):
-            #     penalty += gamma_1 * penalty
-            prev_inequality_value = inequality_value
-            k += 1
-        print('With our method: ')
-        print('x = ', result.x[:n])
-        print('s = ', result.x[n:])
-        print('dual variable = ', dual_variable)
-        return dual_variable, penalty, list_dual
+            def dual_function(variables):
+                return self.problem['objective_function'](variables[:n]) + self.problem['penalty_eq'] / 2 * np.linalg.norm(
+                    equality_constraint(variables), 2) + self.problem['penalty_ineq'] / 2 * np.linalg.norm(
+                    inequality_constraint(variables),
+                    2)
+
+            s_0 = np.zeros(n)
+            x0 = np.concatenate((self.problem['x_0'], s_0))
+            result = minimize(dual_function, x0, method='trust-constr', constraints=(
+                {"fun": inequality_constraint, "type": "eq"}, {"fun": equality_constraint, "type": "eq"}),
+                              options={'verbose': 1}, bounds=bounds)
+            dual_variable_ineq = result.v[0]
+            dual_variable_eq = result.v[1]
+
+            print('dual_ineq = ', dual_variable_ineq)
+            print('dual_eq = ', dual_variable_eq)
+
+            print(result.x[n:])
+
+            return dual_variable_eq, dual_variable_ineq
+
+        elif self.problem['A_ineq'] is not None and self.problem['b_ineq'] is not None and (
+                self.problem['A_eq'] is None or self.problem['b_eq'] is None):
+
+            lb = np.concatenate((self.problem['lb'].copy(), - np.inf * np.ones((n,))), axis=0)
+            ub = np.concatenate((self.problem['ub'].copy(), np.zeros((n,))), axis=0)
+            bounds = Bounds(lb, ub)
+
+            def inequality_constraint(variables):
+                return np.dot(self.problem['A_ineq'], variables[:n]) - self.problem['b_ineq'] - variables[n:]
+
+            def dual_function(variables):
+                return self.problem['objective_function'](variables[:n]) + self.problem['penalty_ineq'] / 2 * np.linalg.norm(
+                    inequality_constraint(variables),
+                    2)
+
+            s_0 = np.zeros(n)
+            x0 = np.concatenate((self.problem['x_0'], s_0))
+            result = minimize(dual_function, x0, method='trust-constr',
+                              constraints=({"fun": inequality_constraint, "type": "eq"}),
+                              options={'verbose': 1}, bounds=bounds)
+            dual_variable_ineq = result.v[0]
+
+            print('dual_ineq = ', dual_variable_ineq)
+
+            print('s = ', result.x[n:])
+
+            return None, dual_variable_ineq
+
+        elif self.problem['A_eq'] is not None and self.problem['b_eq'] is not None and (
+                self.problem['A_ineq'] is None or self.problem['b_ineq'] is None):
+            bounds = Bounds(self.problem['lb'], self.problem['ub'])
+
+            def equality_constraint(variable):
+                return np.dot(self.problem['A_eq'], variable) - self.problem['b_eq']
+
+            def dual_function(variable):
+                return self.problem['objective_function'](variable) + self.problem['penalty_eq'] / 2 * np.linalg.norm(
+                    equality_constraint(variable), 2)
+
+            x0 = self.problem['x_0']
+            result = minimize(dual_function, x0, method='trust-constr',
+                              constraints=({"fun": equality_constraint, "type": "eq"}),
+                              options={'verbose': 1, 'factorization_method':'SVDFactorization'}, bounds=bounds)
+            dual_variable_eq = result.v[0] / 5
+
+            # dual_variable_eq = np.array([-2, 0])
+
+            print(result)
+
+            print('dual_eq = ', result.v[0])
+
+            return dual_variable_eq, None
+
+        else:
+            return None, None
 
     def _hopfield_update(self, x_h, alpha, direction):
         if self.problem is None:

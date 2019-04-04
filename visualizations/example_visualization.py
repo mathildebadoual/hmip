@@ -5,36 +5,36 @@ import hmip.utils as utils
 import matplotlib.pyplot as plt
 import cvxpy as cvx
 
-
 H = np.array([[1, 1], [1, 10]])
 # H = np.array([[0, 0], [0, 0]])
 q = np.array([1, 6])
 # q = np.array([0, 0])
 k_max = 1000
-binary_indicator = np.array([0, 1])
+binary_indicator = np.array([0, 0])
 ub = np.array([1, 1])
 lb = np.array([0, 0])
 H = utils.make_symmetric(H)
 smoothness_coefficient = utils.smoothness_coefficient(H)
 beta = np.array([10.0, 1.0])
-A = np.array([[-1, -0.2], [0, 0]])
-b = np.array([-0.5, 0])
+A_ineq = None
+b_ineq = None
+A_eq = None
+b_eq = None
+A_eq = np.array([[3, 1], [0, 0]])
+b_eq = np.array([0.7, 0])
 n = 2
+activation_type = 'sin'
+penalty_eq = 10
+penalty_ineq = 10
 
-# solve the relaxed problem with cvxpy
-
+# with cvxpy
 x = cvx.Variable(n)
-constraints = [A * x - b <= 0]
-constraints += [lb - x <= 0, x - ub <= 0]
-objective = cvx.Minimize(cvx.quad_form(x, H) + q.T * x)
-problem = cvx.Problem(objective, constraints)
+constraint = [A_eq * x - b_eq == 0, x <= 1, x >= 0]
+objective = cvx.Minimize(cvx.quad_form(x, H) + q.T * x + penalty_eq * cvx.norm(A_eq * x - b_eq, 2))
+problem = cvx.Problem(objective, constraint)
 problem.solve()
-print('With CVXPY: ')
-print('x = ', x.value)
-print('dual variable = ', constraints[0].dual_value)
-
-
-dual_variable = constraints[0].dual_value
+print(constraint[0].dual_value)
+print(x.value)
 
 
 def objective_function(x):
@@ -45,54 +45,27 @@ def gradient(x):
     return np.dot(x, H) + q
 
 
-activation_type = 'sin'
-
-# solver_dual = HopfieldSolver(max_iterations=k_max, activation_type=activation_type)
-# solver_dual.setup_optimization_problem(objective_function, gradient, lb, ub, A, b, binary_indicator,
-#                                        smoothness_coef=smoothness_coefficient, beta=beta)
-# dual_variable, penalty, list_dual = solver_dual._solve_dual_gradient_ascent(np.zeros(2), 1)
-# plt.plot(list_dual)
-
-# dual_variable = 100 * np.ones(2)
-
-
-def inequality_constraint(z):
-    return np.dot(A, z) - b
-
-
-# def dual_function(x, dual_variable, penalty):
-#     return objective_function(x) + np.dot(dual_variable.T, inequality_constraint(x)) + penalty / 2 * np.linalg.norm(
-#         inequality_constraint(x), 2)
-#
-#
-# def new_objective_function(x):
-#     return dual_function(x, dual_variable, penalty)
-#
-#
-# def new_gradient(x):
-#     return gradient(x) + np.dot(A.T, dual_variable) + penalty * np.dot(A.T, inequality_constraint(x))
-
-
-def new_objective_function(x):
-    return objective_function(x) + np.dot(dual_variable.T, inequality_constraint(x))
-
-
-def new_gradient(x):
-    return gradient(x) + np.dot(A.T, dual_variable)
-
+solver_dual = HopfieldSolver(max_iterations=k_max, activation_type=activation_type)
 
 solver = HopfieldSolver(max_iterations=k_max, activation_type=activation_type)
-solver.setup_optimization_problem(new_objective_function, new_gradient, lb, ub, A, b, binary_indicator,
-                                  smoothness_coef=smoothness_coefficient, beta=beta)
+solver.setup_optimization_problem(objective_function, gradient, lb, ub, binary_indicator, A_eq=A_eq, b_eq=b_eq,
+                                  A_ineq=A_ineq, b_ineq=b_ineq,
+                                  smoothness_coef=smoothness_coefficient, beta=beta, penalty_eq=penalty_eq,
+                                  penalty_ineq=penalty_ineq)
 
-x, x_h, f_val_hist, step_size = solver.solve_optimization_problem()
+x, x_h, f_val_hist, step_size, other_dict = solver.solve_optimization_problem()
 
-visuals.plot_evolution_objective_function_2d(H, q, x, lb, ub, k_max, 'objective_function_2d.png', A=A, b=b,
-                                             dual=dual_variable, penalty=0)
+visuals.plot_evolution_objective_function_2d(H, q, x, lb, ub, k_max, 'objective_function_2d.png', A=A_eq, b=b_eq)
 
 for i in range(x.shape[1]):
     if np.isnan(x[:, i]).all():
-        print(x[:, i-1])
+        print(x[:, i - 1])
+        print('equality:', np.dot(A_eq, x[:, i - 1]) - b_eq)
+        # print('inequality:', np.dot(A_ineq, x[:, i - 1]) - b_ineq)
+        break
+    if i == 999:
+        print(x[:, -1])
+        print('equality:', np.dot(A_eq, x[:, -1]) - b_eq)
         break
 
 visuals.plot_value_function(f_val_hist, 'value_function.png')
