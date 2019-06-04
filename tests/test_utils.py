@@ -8,8 +8,16 @@ class TestIsInBox(unittest.TestCase):
         pass
 
     def test_is_in_box(self):
-        output = utils.is_in_box(np.array([0.5, 0.5]), np.array([1, 1]), np.array([0, 0]))
+        output = utils.is_in_box(np.array([0.5, 0.5]), np.array([1, 1]),
+                                 np.array([0, 0]))
         self.assertTrue(output)
+
+        output = utils.is_in_box(None, np.array([1, 1]), np.array([0, 0]))
+        self.assertFalse(output)
+
+        output = utils.is_in_box(np.array([2, 0.5]), np.array([1, 1]),
+                                 np.array([0, 0]))
+        self.assertFalse(output)
 
 
 class TestProxyDistanceVector(unittest.TestCase):

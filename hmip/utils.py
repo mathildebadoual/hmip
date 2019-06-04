@@ -11,7 +11,9 @@ def smoothness_coefficient(H):
 
 
 def is_in_box(x, ub, lb):
-    if np.all(np.greater(ub, x)) and np.all(np.greater(x, lb)):
+    if x is None:
+        return False
+    elif np.all(np.greater(ub, x)) and np.all(np.greater(x, lb)):
         return True
     else:
         return False
@@ -98,8 +100,10 @@ def activation_pwl(x, beta):
     :param beta: (np.array) size of x, parameter of the function
     :return:
     """
-    pwl = np.maximum(np.zeros(len(x)),
-                     np.minimum(np.ones(len(x)), np.multiply(beta, (x - 1 / 2)) + 1 / 2 * np.ones(len(x))))
+    pwl = np.maximum(
+        np.zeros(len(x)),
+        np.minimum(np.ones(len(x)),
+                   np.multiply(beta, (x - 1 / 2)) + 1 / 2 * np.ones(len(x))))
     return pwl
 
 
@@ -230,11 +234,24 @@ def inverse_activation_identity(x, beta=None):
     return x
 
 
-def check_type(n, H=None, q=None, lb=None, ub=None, binary_indicator=None, L=None, k_max=None,
-               absorption_val=None, gamma=None, theta=None, initial_state=None,
-               beta=None, absorption=None,
-               step_type=None, direction_type=None,
-               activation_type=None, initial_ascent_type=None):
+def check_type(n,
+               H=None,
+               q=None,
+               lb=None,
+               ub=None,
+               binary_indicator=None,
+               L=None,
+               k_max=None,
+               absorption_val=None,
+               gamma=None,
+               theta=None,
+               initial_state=None,
+               beta=None,
+               absorption=None,
+               step_type=None,
+               direction_type=None,
+               activation_type=None,
+               initial_ascent_type=None):
     """
 
     :param n: (integer)
@@ -352,7 +369,9 @@ def make_symmetric(matrix):
     """
     if not np.allclose(matrix, matrix.T, atol=0):
         matrix = 1 / 2 * (matrix + matrix.T)
-        print('Specified matrix H was not symmetric, matrix H has been replaced by 1/2 * (matrix + matrix.transpose)')
+        print(
+            'Specified matrix H was not symmetric, matrix H has been replaced by 1/2 * (matrix + matrix.transpose)'
+        )
     return matrix
 
 
@@ -364,8 +383,10 @@ def adapt_ascent_stop_criterion(ascent_stop, absorption):
     """
     if absorption is not None and ascent_stop is not None and ascent_stop <= absorption:
         ascent_stop = absorption * 2
-        print('Choice of initial ascent stopping criterion was smaller than the '
-              'chosen absorption value, ascent_stop was taken to be absorption * 2')
+        print(
+            'Choice of initial ascent stopping criterion was smaller than the '
+            'chosen absorption value, ascent_stop was taken to be absorption * 2'
+        )
     return ascent_stop
 
 
@@ -382,14 +403,16 @@ def assess_convexity_of_objective(H):
 
 def parser_mps_file(file_path):
     fixed = True
-    sections = dict({"NAME": False,
-                     "ROWS": False,
-                     "COLUMNS": False,
-                     "RHS": False,
-                     "BOUNDS": False,
-                     "RANGES": False,
-                     "SOS": False,
-                     "ENDATA": False})
+    sections = dict({
+        "NAME": False,
+        "ROWS": False,
+        "COLUMNS": False,
+        "RHS": False,
+        "BOUNDS": False,
+        "RANGES": False,
+        "SOS": False,
+        "ENDATA": False
+    })
     if not fixed:
         sections["OBJSENSE"] = False
         sections["OBJNAME"] = False
@@ -427,7 +450,8 @@ def parser_mps_file(file_path):
             raise Exception("Section ", section, " appears twice")
         elif section == "COLUMNS" and not sections["ROWS"]:
             raise Exception("ROWS must come before COLUMNS")
-        elif section == "RHS" and (not sections["COLUMNS"] or not sections["NAME"]):
+        elif section == "RHS" and (not sections["COLUMNS"]
+                                   or not sections["NAME"]):
             raise Exception("NAME and COLUMNS must come before RHS")
         elif section == "BOUNDS" and not sections["COLUMNS"]:
             raise Exception("COLUMNS must come before BOUNDS")
@@ -476,8 +500,8 @@ def read_objsense(f):
         return 'min'
     else:
         return 'max'
-    
-    
+
+
 def read_objname(f):
     line = f.readline()
     while line.strip() == "" or line[0] == '*':

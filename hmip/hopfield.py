@@ -11,7 +11,8 @@ class HopfieldSolver():
                  stopping_criterion_type='gradient', direction_type='classic',
                  step_type='classic',
                  initial_ascent_type='binary_neutral_ascent',
-                 precision_stopping_criterion=10 ** -6):
+                 precision_stopping_criterion=10 ** -6,
+                 beta=None):
 
         self.activation_function = getattr(
             utils, 'activation_' + activation_type)
@@ -30,12 +31,12 @@ class HopfieldSolver():
         self.precision_stopping_criterion = precision_stopping_criterion
         self.gamma = gamma
         self.theta = theta
-        self.beta = None
+        self.beta = beta
 
     def setup_optimization_problem(self, objective_function, gradient, lb, ub,
                                    binary_indicator, A_eq=None, b_eq=None,
                                    A_ineq=None, b_ineq=None, x_0=None,
-                                   smoothness_coef=None, beta=None,
+                                   smoothness_coef=None,
                                    penalty_eq=0, penalty_ineq=0):
         # TODO: Find how to chose smoothness_coef when using barrier method
         problem = dict({
@@ -54,13 +55,10 @@ class HopfieldSolver():
             'penalty_eq': penalty_eq,
             'penalty_ineq': penalty_ineq
         })
-        if type(beta) == int:
-            self.beta = beta * np.ones(problem['dim_problem'])
-        elif beta is None:
+        if type(self.beta) == int:
+            self.beta = self.beta * np.ones(problem['dim_problem'])
+        elif self.beta is None:
             self.beta = np.ones(problem['dim_problem'])
-        else:
-            self.beta = beta
-        problem['x_0'] = self._compute_x_0(x_0, problem)
         return problem
 
     def solve(self, problem):
@@ -68,13 +66,18 @@ class HopfieldSolver():
         x_h = np.nan * np.ones((problem['dim_problem'], self.max_iterations))
         f_val_hist = np.nan * np.ones(self.max_iterations)
         step_size = np.nan * np.ones(self.max_iterations)
-        dual_variables_eq, dual_variables_ineq = self._get_dual_variables(
-                problem)
+
+        problem['x_0'] = self._compute_x_0(problem)
 
         A_ineq = problem['A_ineq']
         A_eq = problem['A_eq']
         b_ineq = problem['b_ineq']
         b_eq = problem['b_eq']
+
+        if A_eq is not None and A_eq is not None and \
+                b_eq is not None and b_ineq is not None:
+            dual_variables_eq, dual_variables_ineq = self._get_dual_variables(
+                problem)
 
         if A_ineq is not None and b_ineq is not None and \
                 A_eq is not None and b_eq is not None:
@@ -161,7 +164,8 @@ class HopfieldSolver():
                     step_size[k] = alpha
 
             if self.absorption_criterion is not None:
-                x[:, k + 1] = self._absorb_solution_to_limits(x[:, k + 1])
+                x[:, k + 1] = self._absorb_solution_to_limits(
+                    x[:, k + 1], problem)
 
             k += 1
 
@@ -325,8 +329,9 @@ class HopfieldSolver():
 
         return alpha
 
-    def _compute_x_0(self, x_0, problem):
-        if x_0 is None or not utils.is_in_box(x_0, problem['ub'],
+    def _compute_x_0(self, problem):
+        x_0 = np.copy(problem['x_0'])
+        if x_0 == None or not utils.is_in_box(x_0, problem['ub'],
                                               problem['lb']):
             x_0 = problem['lb'] + \
                 (problem['ub'] - problem['lb']) / 2
@@ -346,7 +351,7 @@ class HopfieldSolver():
                 x_0 = x_0 + (1 / problem['smoothness_coef']) * grad_f
             elif self.initial_ascent_type == 'binary_neutral_ascent':
                 x_0 = x_0 + (1 / problem['smoothness_coef']) * np.multiply(
-                    grad_f, np.ones(n) - problem['binary_indicator'])
+                    grad_f, np.ones((n,)) - problem['binary_indicator'])
             iterations += 1
 
         return self._activation(x_0,
