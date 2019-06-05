@@ -1,31 +1,3 @@
-#!/usr/bin/python
-# ---------------------------------------------------------------------------
-# File: lpex2.py
-# Version 12.9.0
-# ---------------------------------------------------------------------------
-# Licensed Materials - Property of IBM
-# 5725-A06 5725-A29 5724-Y48 5724-Y49 5724-Y54 5724-Y55 5655-Y21
-# Copyright IBM Corporation 2009, 2019. All Rights Reserved.
-#
-# US Government Users Restricted Rights - Use, duplication or
-# disclosure restricted by GSA ADP Schedule Contract with
-# IBM Corp.
-# ---------------------------------------------------------------------------
-"""
-Reading and optimizing a problem.  Demonstrates specifying
-optimization method by setting parameters.
-
-The user has to choose the method on the command line:
-
-   python lpex2.py <filename> o     cplex default
-   python lpex2.py <filename> p     primal simplex
-   python lpex2.py <filename> d     dual simplex
-   python lpex2.py <filename> b     barrier
-   python lpex2.py <filename> h     barrier with crossover
-   python lpex2.py <filename> s     sifting
-   python lpex2.py <filename> c     concurrent
-"""
-
 from __future__ import print_function
 
 import sys
