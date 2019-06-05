@@ -1,4 +1,5 @@
 import cvxpy as cvx
+import cplex
 
 
 def cvxpy_solver(H, q, lb, ub, binary_indicator, solver=None):
@@ -32,3 +33,18 @@ def cvxpy_solver(H, q, lb, ub, binary_indicator, solver=None):
         problem.solve(solver=solver)
 
     return x.value
+
+
+def cplex_solver():
+    """
+    Solves the same problem as hopfield with CPLEX solver
+    (requires CPLEX)
+    :param H:
+    :param q:
+    :param lb:
+    :param ub:
+    :param binary_indicator:
+    :param solver: cvxpy solver
+    :return: result of the optimization
+    """
+    pass
