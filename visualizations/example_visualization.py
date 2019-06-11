@@ -16,11 +16,11 @@ beta = np.array([10.0, 1.0])
 A_eq = np.array([[3, 1], [0, 0]])
 b_eq = np.array([0.3, 0])
 
-A_ineq = None
-b_ineq = None
+A_ineq = np.array([[3, 1], [0, 0]])
+b_ineq = np.array([0.3, 0])
 n = 2
 activation_type = 'sin'
-penalty_eq = 10
+penalty_eq = 1000
 penalty_ineq = 10
 
 
@@ -36,8 +36,7 @@ solver = HopfieldSolver(max_iterations=k_max, activation_type=activation_type)
 problem = solver.setup_optimization_problem(
     objective_function, gradient, lb, ub, binary_indicator, A_eq=A_eq,
     b_eq=b_eq, A_ineq=A_ineq, b_ineq=b_ineq,
-    smoothness_coef=smoothness_coefficient,
-    beta=beta, penalty_eq=penalty_eq,
+    smoothness_coef=smoothness_coefficient, penalty_eq=penalty_eq,
     penalty_ineq=penalty_ineq)
 
 x, x_h, f_val_hist, step_size, other_dict = solver.solve(problem)

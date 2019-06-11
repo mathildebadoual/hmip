@@ -1,9 +1,8 @@
 from __future__ import print_function
 
-import sys
-
 import argparse
 import cplex
+import hmip
 import numpy as np
 from cplex.exceptions import CplexSolverError
 
@@ -17,8 +16,6 @@ def adapt_lp_file_to_numpy(filename):
     b_ineq = np.zeros(n)
     A_eq = np.zeros((n, n))
     b_eq = np.zeros(n)
-    objective_function = 0
-    gradient = 0
     lower_bounds = c.variables.get_lower_bounds()
     upper_bounds = c.variables.get_upper_bounds()
 
@@ -29,23 +26,57 @@ def adapt_lp_file_to_numpy(filename):
     for i, constraint_type in enumerate(c.linear_constraints.get_senses()):
         if constraint_type == 'L':
             for k, j in enumerate(c.linear_constraints.get_rows(i).ind):
-                A_ineq[i, j] = c.linear_constraints.get_rows(i).val[k]
-            b_ineq[i] = c.linear_constraints.get_rhs(i)
+                A_ineq[i, j] = c.linear_constraints.get_rows()[i].val[k]
+            b_ineq[i] = c.linear_constraints.get_rhs()[i]
         if constraint_type == 'E':
             for k, j in enumerate(c.linear_constraints.get_rows(i).ind):
-                A_eq[i, j] = c.linear_constraints.get_rows(i).val[k]
-            b_eq[i] = c.linear_constraints.get_rhs(i)
+                A_eq[i, j] = c.linear_constraints.get_rows()[i].val[k]
+            b_eq[i] = c.linear_constraints.get_rhs()[i]
 
-    print(A_ineq, A_eq, b_ineq, b_eq)
+    quadratic_constraint = c.quadratic_constraints.get_quadratic_components(0)
+    q = np.array(c.objective.get_linear())
+    Q = np.eye(n)
 
-
-    print(binary_indicator)
+    objective_function = lambda x: np.dot(x.T, np.dot(Q, x)) + np.dot(q.T, x)
+    gradient = lambda x: 2 * np.dot(Q, x) + q
 
     return objective_function, gradient, lower_bounds, upper_bounds, binary_indicator, A_eq, b_eq, A_ineq, b_ineq
 
 
+def solve_with_hmip(filename):
+    objective_function, gradient, lower_bounds, upper_bounds, binary_indicator, A_eq, b_eq, A_ineq, b_ineq = adapt_lp_file_to_numpy(
+        filename)
+    solver = hmip.HopfieldSolver()
+
+    print(lower_bounds)
+    problem = solver.setup_optimization_problem(objective_function,
+                                                gradient,
+                                                np.array(lower_bounds),
+                                                np.array(upper_bounds),
+                                                binary_indicator,
+                                                A_eq=A_eq,
+                                                b_eq=b_eq,
+                                                A_ineq=A_ineq,
+                                                b_ineq=b_ineq)
+
+    x, x_h, f_val_hist, step_size, other_dict = solver.solve(problem)
+
+    print(x[:, -1])
+
+
+def update_portfolio_optim_problem(c):
+    quadratic_constraint = c.quadratic_constraints.get_quadratic_components(0)
+    n = len(quadratic_constraint.ind1)
+    c.quadratic_constraints.delete(0)
+    c.objective.set_quadratic(float(1)*np.ones(n))
+    return c
+
+
 def solve_with_cplex(filename):
     c = cplex.Cplex(filename)
+
+    if 'portfol_classical' in filename:
+        c = update_portfolio_optim_problem(c)
 
     alg = c.parameters.lpmethod.values
     c.parameters.lpmethod.set(alg.auto)
@@ -122,4 +153,5 @@ if __name__ == "__main__":
                         type=str)
     args = parser.parse_args()
 
-    adapt_lp_file_to_numpy(args.filename)
+    # adapt_lp_file_to_numpy(args.filename)
+    solve_with_hmip(args.filename)

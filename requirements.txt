@@ -4,5 +4,5 @@ cvxpy
 scipy
 jupyter
 matplotlib
-sympy
+cplex
 numpy >= 1.14

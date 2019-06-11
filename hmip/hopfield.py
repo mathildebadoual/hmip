@@ -38,7 +38,11 @@ class HopfieldSolver():
                                    A_ineq=None, b_ineq=None, x_0=None,
                                    smoothness_coef=None,
                                    penalty_eq=0, penalty_ineq=0):
+        utils.check_type(len(binary_indicator), lb=lb, ub=ub, binary_indicator=binary_indicator)
         # TODO: Find how to chose smoothness_coef when using barrier method
+        if not smoothness_coef:
+            smoothness_coef = 1
+
         problem = dict({
             'objective_function': objective_function,
             'gradient': gradient,
@@ -59,6 +63,9 @@ class HopfieldSolver():
             self.beta = self.beta * np.ones(problem['dim_problem'])
         elif self.beta is None:
             self.beta = np.ones(problem['dim_problem'])
+
+        problem['x_0'] = self._compute_x_0(problem)
+
         return problem
 
     def solve(self, problem):
@@ -66,8 +73,6 @@ class HopfieldSolver():
         x_h = np.nan * np.ones((problem['dim_problem'], self.max_iterations))
         f_val_hist = np.nan * np.ones(self.max_iterations)
         step_size = np.nan * np.ones(self.max_iterations)
-
-        problem['x_0'] = self._compute_x_0(problem)
 
         A_ineq = problem['A_ineq']
         A_eq = problem['A_eq']
@@ -180,7 +185,7 @@ class HopfieldSolver():
 
     def _get_dual_variables(self, problem):
         n = problem['dim_problem']
-        rho = 5
+        rho = 10
         A_ineq = problem['A_ineq']
         A_eq = problem['A_eq']
         b_ineq = problem['b_ineq']
@@ -231,12 +236,14 @@ class HopfieldSolver():
                 s_0 = np.zeros(n)
                 x = np.concatenate((problem['x_0'], s_0))
                 next_x = np.ones(x.shape)
+                dual_variables_eq = next_dual_variables_eq
+                dual_variables_ineq = next_dual_variables_ineq
+
                 while np.linalg.norm(next_x - x) > 0.001:
                     x = next_x
-                    dual_variables_eq = next_dual_variables_eq
-                    dual_variables_ineq = next_dual_variables_ineq
                     next_x = projection(x - rate * gradient_dual_function(
                         x, dual_variables_eq, dual_variables_ineq))
+
                 next_dual_variables_eq = dual_variables_eq + \
                         rho * equality_constraint(next_x)
                 next_dual_variables_ineq = dual_variables_ineq + \
@@ -305,7 +312,6 @@ class HopfieldSolver():
                         x, dual_variables))
                 next_dual_variables = dual_variables - \
                     rho * equality_constraint(next_x)
-                print('dual: ', next_dual_variables)
 
             return next_dual_variables, None
 
@@ -331,7 +337,7 @@ class HopfieldSolver():
 
     def _compute_x_0(self, problem):
         x_0 = np.copy(problem['x_0'])
-        if x_0 == None or not utils.is_in_box(x_0, problem['ub'],
+        if x_0.all() == None or not utils.is_in_box(x_0, problem['ub'],
                                               problem['lb']):
             x_0 = problem['lb'] + \
                 (problem['ub'] - problem['lb']) / 2

@@ -235,8 +235,6 @@ def inverse_activation_identity(x, beta=None):
 
 
 def check_type(n,
-               H=None,
-               q=None,
                lb=None,
                ub=None,
                binary_indicator=None,
@@ -255,8 +253,6 @@ def check_type(n,
     """
 
     :param n: (integer)
-    :param H: (numpy.ndarray)
-    :param q: (numpy.ndarray)
     :param lb: (numpy.ndarray)
     :param ub: (numpy.ndarray)
     :param binary_indicator: (numpy.ndarray)
@@ -275,30 +271,18 @@ def check_type(n,
     :return:
     """
 
-    # TODO(Mathilde): Print messages if not condition?
-
     if initial_state is not None:
         if isinstance(initial_state, np.ndarray):
             return len(initial_state) == n
         else:
-            return False
-
-    if H is not None:
-        if isinstance(H, np.ndarray):
-            return H.shape == (n, n)
-        else:
-            return False
-
-    if q is not None:
-        if isinstance(q, np.ndarray):
-            return len(q) == n
-        else:
+            print('initial_state is not of the correct type or dim')
             return False
 
     if lb is not None:
         if isinstance(lb, np.ndarray):
             return len(lb) == n
         else:
+            print('lb is not of the correct type or dim')
             return False
 
     if ub is not None:

@@ -81,6 +81,52 @@ class TestHopfield(unittest.TestCase):
         self.assertEqual(x.shape[0], self.q.shape[0])
         self.assertEqual(x.shape[1], self.k_max)
 
+    def test_get_dual_variables(self):
+        # test of the equality
+        solver = HopfieldSolver(max_iterations=self.k_max, step_type='armijo')
+        problem = solver.setup_optimization_problem(
+            self.objective_function,
+            self.gradient,
+            self.lb,
+            self.ub,
+            self.binary_indicator,
+            A_eq=self.A,
+            b_eq=self.b,
+            smoothness_coef=self.smoothness_coefficient)
+        dual_variables_eq, dual_variables_ineq = HopfieldSolver._get_dual_variables(solver, problem)
+        self.assertTrue(dual_variables_ineq == None)
+
+        # test of the inequality
+        solver = HopfieldSolver(max_iterations=self.k_max, step_type='armijo')
+        problem = solver.setup_optimization_problem(
+            self.objective_function,
+            self.gradient,
+            self.lb,
+            self.ub,
+            self.binary_indicator,
+            A_ineq=self.A,
+            b_ineq=self.b,
+            smoothness_coef=self.smoothness_coefficient)
+        dual_variables_eq, dual_variables_ineq = HopfieldSolver._get_dual_variables(solver, problem)
+        self.assertTrue(dual_variables_eq == None)
+
+        # test of all
+        solver = HopfieldSolver(max_iterations=self.k_max, step_type='armijo')
+        problem = solver.setup_optimization_problem(
+            self.objective_function,
+            self.gradient,
+            self.lb,
+            self.ub,
+            self.binary_indicator,
+            A_ineq=self.A,
+            b_ineq=self.b,
+            A_eq=self.A,
+            b_eq=self.b,
+            smoothness_coef=self.smoothness_coefficient)
+        dual_variables_eq, dual_variables_ineq = HopfieldSolver._get_dual_variables(solver, problem)
+        self.assertTrue(dual_variables_eq.all() != None)
+        self.assertTrue(dual_variables_ineq.all() != None)
+
 
 class TestOthers(unittest.TestCase):
     def setUp(self):
