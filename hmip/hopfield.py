@@ -79,8 +79,8 @@ class HopfieldSolver():
         b_ineq = problem['b_ineq']
         b_eq = problem['b_eq']
 
-        if A_eq is not None and A_eq is not None and \
-                b_eq is not None and b_ineq is not None:
+        if (A_eq is not None and b_eq is not None) or \
+                (A_ineq is not None and b_ineq is not None):
             dual_variables_eq, dual_variables_ineq = self._get_dual_variables(
                 problem)
 
