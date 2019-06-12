@@ -1,4 +1,4 @@
-codecove
+codecov
 nose
 coverage
 cvxpy
