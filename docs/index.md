@@ -1,20 +1,21 @@
 HMIP solver documentation
 ==========================
 
-.. math::
+```math
   \begin{eqnarray}
 	  \minimize && f(\blue{x}) \\
 	  \sto && g_j(\blue{x}) \leq 0, \quad j = 1, \cdots, m \\
 	  &&	\blue{x_i} \in \{0, 1\}, \quad i = 1, \cdots, p < n \\
 	  &&	0 \leq \blue{x_i} \leq 1, \quad i = p+1, \cdots, n
   \end{eqnarray}
+```
 
 where :math:`x` is the optimization variable and
 :math:`P \in \mathbf{S}^{n}_{+}` a positive semidefinite matrix.
 
 **Code available on** `GitHub <https://github.com/oxfordcontrol/osqp>`_.
 
-.. rubric:: Citing HMIP
+** rubric Citing HMIP
 
 If you are using HMIP for your work, we encourage you to
 
