@@ -19,4 +19,4 @@ script:
     - nosetests --with-coverage
 
 after_success:
-    - codecov -t CODECOV_TOKEN="bf241da9-a152-4025-baa6-60013f5f2a85"
+    - codecov
