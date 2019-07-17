@@ -39,7 +39,7 @@ class HopfieldSolver():
                                    smoothness_coef=None,
                                    penalty_eq=0, penalty_ineq=0):
         utils.check_type(len(binary_indicator), lb=lb, ub=ub, binary_indicator=binary_indicator)
-        # TODO: Find how to chose smoothness_coef when using barrier method
+        # TODO: Find how to chose smoothness_coef when using barrier method [Bertrand: there is no global smoothness coeff as log is not a smooth function, we could define a local one though]
         if not smoothness_coef:
             smoothness_coef = 1
 
@@ -65,6 +65,12 @@ class HopfieldSolver():
             self.beta = np.ones(problem['dim_problem'])
 
         problem['x_0'] = self._compute_x_0(problem)
+
+        if A_eq is not None and len(A_eq.shape) == 1:
+            A_eq.shape = (1, len(A_eq))
+
+        if A_ineq is not None and len(A_ineq.shape) == 1:
+            A_ineq.shape = (1, len(A_ineq))
 
         return problem
 
@@ -194,9 +200,10 @@ class HopfieldSolver():
         penalty_ineq = problem['penalty_ineq']
         penalty_eq = problem['penalty_eq']
 
+        precision = 10**(-4)/n
         if A_eq is not None:
             n_eq = len(A_eq)
-
+            print('n_eq', n_eq)
         if A_ineq is not None:
             n_ineq = len(A_ineq)
 
@@ -211,7 +218,8 @@ class HopfieldSolver():
                 A_eq is not None and b_eq is not None:
 
             rate = 1 / (problem['smoothness_coef'] + penalty_eq * max(np.linalg.eigvals(A_eq.T @ A_eq)) +
-                        penalty_ineq * max(np.linalg.eigvals(A_ineq.T @ A_ineq)))
+                            penalty_ineq * max(np.linalg.eigvals(A_ineq.T @ A_ineq)))
+
 
             def inequality_constraint(variables):
                 return A_ineq @ variables[:n] - b_ineq - variables[n:]
@@ -231,8 +239,8 @@ class HopfieldSolver():
             next_dual_variables_eq = np.ones(n_eq)
             next_dual_variables_ineq = np.ones(n_ineq)
 
-            while np.linalg.norm(next_dual_variables_eq - dual_variables_eq) > 0.001 and \
-                    np.linalg.norm(next_dual_variables_ineq - dual_variables_ineq) > 0.001:
+            while np.linalg.norm(next_dual_variables_eq - dual_variables_eq) > precision and \
+                    np.linalg.norm(next_dual_variables_ineq - dual_variables_ineq) > precision:
 
                 s_0 = np.zeros(n)
                 x = np.concatenate((problem['x_0'], s_0))
@@ -240,7 +248,7 @@ class HopfieldSolver():
                 dual_variables_eq = next_dual_variables_eq
                 dual_variables_ineq = next_dual_variables_ineq
 
-                while np.linalg.norm(next_x - x) > 0.001:
+                while np.linalg.norm(next_x - x) > precision:
                     x = next_x
                     next_x = projection(x - rate * gradient_augmented_lagrangian(x, dual_variables_eq, dual_variables_ineq))
 
@@ -266,11 +274,11 @@ class HopfieldSolver():
             next_dual_variables = np.zeros(n_ineq)
             dual_variables = np.ones(n_ineq)
 
-            while np.linalg.norm(next_dual_variables - dual_variables) > 0.01:
+            while np.linalg.norm(next_dual_variables - dual_variables) > precision:
                 s_0 = np.zeros(n)
                 x = np.concatenate((problem['x_0'], s_0))
                 next_x = np.ones(x.shape)
-                while np.linalg.norm(next_x - x) > 0.001:
+                while np.linalg.norm(next_x - x) > precision:
                     x = next_x
                     dual_variables = next_dual_variables
                     next_x = projection(x - rate * gradient_augmented_lagrangian(x, dual_variables))
@@ -295,10 +303,10 @@ class HopfieldSolver():
             next_dual_variables = np.zeros(n_eq)
             dual_variables = np.ones(n_eq)
 
-            while np.linalg.norm(next_dual_variables - dual_variables) > 0.001:
+            while np.linalg.norm(next_dual_variables - dual_variables) > precision:
                 x = problem['x_0']
                 next_x = np.ones(x.shape)
-                while np.linalg.norm(next_x - x) > 0.001:
+                while np.linalg.norm(next_x - x) > precision:
                     x = next_x
                     dual_variables = next_dual_variables
                     next_x = projection(x - rate * gradient_augmented_lagrangian(x, dual_variables))
