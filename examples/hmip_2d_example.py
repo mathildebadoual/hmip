@@ -15,8 +15,8 @@ binary_indicator = np.array([1, 0])
 ub = np.array([1, 1])
 lb = np.array([0, 0])
 
-A_eq = np.array([3, 1])
-b_eq = np.array([0.5])
+A_eq = np.array([1, 1])
+b_eq = np.array([0.9])
 
 penalty_eq = 10
 penalty_ineq = 10
@@ -32,6 +32,7 @@ def gradient(x):
 
 H = hmip.utils.make_symmetric(H)
 smoothness_coefficient = hmip.utils.smoothness_coefficient(H)
+print('true smooth coef', smoothness_coefficient)
 
 problem = solver.setup_optimization_problem(
     objective_function,
@@ -41,7 +42,7 @@ problem = solver.setup_optimization_problem(
     binary_indicator,
     A_eq=A_eq,
     b_eq=b_eq,
-    smoothness_coef=smoothness_coefficient,
+    smoothness_coef=None,
     penalty_eq=penalty_eq,
     penalty_ineq=penalty_ineq)
 

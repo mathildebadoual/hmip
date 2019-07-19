@@ -41,7 +41,7 @@ class HopfieldSolver():
         utils.check_type(len(binary_indicator), lb=lb, ub=ub, binary_indicator=binary_indicator)
         # TODO: Find how to chose smoothness_coef when using barrier method [Bertrand: there is no global smoothness coeff as log is not a smooth function, we could define a local one though]
         if not smoothness_coef:
-            smoothness_coef = 1
+            smoothness_coef = self._compute_approximate_smoothness_coef(gradient, lb, ub)
 
         problem = dict({
             'objective_function': objective_function,
@@ -59,6 +59,7 @@ class HopfieldSolver():
             'penalty_eq': penalty_eq,
             'penalty_ineq': penalty_ineq
         })
+
         if type(self.beta) == int:
             self.beta = self.beta * np.ones(problem['dim_problem'])
         elif self.beta is None:
@@ -329,8 +330,7 @@ class HopfieldSolver():
         alpha = np.divide(numerator, denominator)
 
         if self.direction_type == 'stochastic':
-            alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / \
-                (problem['smoothness_coef'] * np.sqrt(k))
+            alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (problem['smoothness_coef'] * np.sqrt(k))
 
         return alpha
 
@@ -338,10 +338,11 @@ class HopfieldSolver():
         x_0 = np.copy(problem['x_0'])
         if x_0.all() == None or not utils.is_in_box(x_0, problem['ub'],
                                               problem['lb']):
-            x_0 = problem['lb'] + \
-                (problem['ub'] - problem['lb']) / 2
+            x_0 = (problem['ub'] + problem['lb']) / 2
+
         n = len(x_0)
         iterations = 0
+        # TODO: do not make the max num of iter hard coded
         max_iterations = 10
         grad_f = problem['gradient'](x_0)
         if np.linalg.norm(grad_f) == 0:
@@ -358,7 +359,7 @@ class HopfieldSolver():
                 x_0 = x_0 + (1 / problem['smoothness_coef']) * np.multiply(
                     grad_f, np.ones((n,)) - problem['binary_indicator'])
             iterations += 1
-
+        # TODO: NO... I have to change that to a normal projection
         return self._activation(x_0,
                                 problem['ub'] - self.ascent_stop_criterion,
                                 problem['lb'] + self.ascent_stop_criterion)
@@ -379,6 +380,15 @@ class HopfieldSolver():
             else:
                 return False
 
+    def _compute_binary_absorption_mask(self, x, problem):
+        n = np.size(x)
+        binary_absorption_mask = np.ones(n)
+        for i in range(n):
+            if problem['binary_indicator'][i]:
+                if x[i] == problem['ub'][i] or x[i] == problem['lb'][i]:
+                    binary_absorption_mask[i] = 0
+        return binary_absorption_mask
+
     def _find_direction(self, x, grad_f, problem):
         # TODO(Mathilde): Here sometimes there is no solution
         n = np.size(x)
@@ -388,7 +398,7 @@ class HopfieldSolver():
         # classic gradient
         if (self.direction_type == 'classic') \
                 or (self.direction_type == 'stochastic'):
-            if self.absorption_criterion is not None:
+            if self.absorption_criterion is not None: # TODO That does not seem right
                 direction = - grad_f
             else:
                 direction = - np.multiply(binary_absorption_mask, grad_f)
@@ -401,6 +411,7 @@ class HopfieldSolver():
         elif self.direction_type == 'binary' \
                 or self.direction_type == 'soft_binary':
             if self.direction_type == 'soft_binary':
+                # TODO check that : definition of d looks weird
                 b = np.multiply(
                     self._activation(x, problem['ub'], problem['lb']) + 1 / 2
                     * (problem['lb'] - problem['ub']),
@@ -413,7 +424,7 @@ class HopfieldSolver():
                 h = - grad_f
 
             g = - np.multiply(self._proxy_distance_vector(x), grad_f)
-
+# TODO check that next part
             if self.absorption_criterion is not None:
                 b = np.multiply(binary_absorption_mask, b)
                 h = np.multiply(binary_absorption_mask, h)
@@ -433,14 +444,7 @@ class HopfieldSolver():
 
         return direction
 
-    def _compute_binary_absorption_mask(self, x, problem):
-        n = np.size(x)
-        binary_absorption_mask = np.ones(n)
-        for i in range(n):
-            if problem['binary_indicator'][i]:
-                if x[i] == problem['ub'][i] or x[i] == problem['lb'][i]:
-                    binary_absorption_mask[i] = 0
-        return binary_absorption_mask
+
 
     def _absorb_solution_to_limits(self, x, problem):
         for i in range(len(x)):
@@ -454,17 +458,27 @@ class HopfieldSolver():
 
     def _inverse_activation(self, x, ub, lb):
         z = np.divide((x - lb), (ub - lb))
-        return lb + np.multiply(ub - lb,
-                                self.inverse_activation_function(z, self.beta))
+        return lb + np.multiply(ub - lb, self.inverse_activation_function(z, self.beta))
 
     def _activation(self, x, ub, lb):
         z = np.divide((x - lb), (ub - lb))
-        return lb + np.multiply(ub - lb,
-                                self.activation_function(z, self.beta))
+        return lb + np.multiply(ub - lb, self.activation_function(z, self.beta))
 
     def _proxy_distance_vector(self, x, ub, lb):
         z = np.divide((x - lb), (ub - lb))
         return self.proxy_distance_vector(z, self.beta)
+
+    def _compute_approximate_smoothness_coef(self, gradient, lb, ub):
+        n = len(lb)
+        n_rand = 1000 * n
+        smoothness_val = 0.0
+        for n_rand_trials in range(n_rand):
+            point_1 = np.multiply(np.random.rand(n), ub - lb) + lb
+            point_2 = np.multiply(np.random.rand(n), ub - lb) + lb
+            distance = np.linalg.norm(point_1 - point_2)
+            smoothness_val = max(smoothness_val, np.linalg.norm(gradient(point_1)-gradient(point_2))/distance)
+        print('approximate', smoothness_val)
+        return smoothness_val
 
     def _inequality_constraints_problem(self, problem, dual_variable_ineq):
         A_ineq = problem['A_ineq']
@@ -603,3 +617,6 @@ class HopfieldSolver():
             return problem['gradient'](variable)
 
         return objective_function, gradient
+
+
+

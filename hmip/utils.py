@@ -673,7 +673,6 @@ def read_ranges(f, A_init, b_init, con_names, con_types_init, fixed):
     f.seek(pos)
     return A, b, con_types
 
-
 def read_bounds(f, var_names, var_typesinit, fixed):
     var_types = np.copy(var_typesinit)
     pos = f.tell()
