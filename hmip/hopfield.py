@@ -39,9 +39,9 @@ class HopfieldSolver():
                                    smoothness_coef=None,
                                    penalty_eq=0, penalty_ineq=0):
         utils.check_type(len(binary_indicator), lb=lb, ub=ub, binary_indicator=binary_indicator)
-        # TODO: Find how to chose smoothness_coef when using barrier method [Bertrand: there is no global smoothness coeff as log is not a smooth function, we could define a local one though]
+
         if not smoothness_coef:
-            smoothness_coef = self._compute_approximate_smoothness_coef(gradient, lb, ub)
+            smoothness_coef = utils.compute_approximate_smoothness_coef(gradient, lb, ub)
 
         problem = dict({
             'objective_function': objective_function,
@@ -342,8 +342,7 @@ class HopfieldSolver():
 
         n = len(x_0)
         iterations = 0
-        # TODO: do not make the max num of iter hard coded
-        max_iterations = 10
+        max_iterations = 10**3
         grad_f = problem['gradient'](x_0)
         if np.linalg.norm(grad_f) == 0:
             grad_f = (problem['smoothness_coef'] / 10) *\
@@ -359,10 +358,8 @@ class HopfieldSolver():
                 x_0 = x_0 + (1 / problem['smoothness_coef']) * np.multiply(
                     grad_f, np.ones((n,)) - problem['binary_indicator'])
             iterations += 1
-        # TODO: NO... I have to change that to a normal projection
-        return self._activation(x_0,
-                                problem['ub'] - self.ascent_stop_criterion,
-                                problem['lb'] + self.ascent_stop_criterion)
+        return np.minimum(np.maximum(x_0, problem['lb'] + self.ascent_stop_criterion), problem['ub']
+                          - self.ascent_stop_criterion)
 
     def _stopping_criterion_met(self, x, grad_f, iterations, problem):
         if iterations >= self.max_iterations - 1:
@@ -467,18 +464,6 @@ class HopfieldSolver():
     def _proxy_distance_vector(self, x, ub, lb):
         z = np.divide((x - lb), (ub - lb))
         return self.proxy_distance_vector(z, self.beta)
-
-    def _compute_approximate_smoothness_coef(self, gradient, lb, ub):
-        n = len(lb)
-        n_rand = 1000 * n
-        smoothness_val = 0.0
-        for n_rand_trials in range(n_rand):
-            point_1 = np.multiply(np.random.rand(n), ub - lb) + lb
-            point_2 = np.multiply(np.random.rand(n), ub - lb) + lb
-            distance = np.linalg.norm(point_1 - point_2)
-            smoothness_val = max(smoothness_val, np.linalg.norm(gradient(point_1)-gradient(point_2))/distance)
-        print('approximate', smoothness_val)
-        return smoothness_val
 
     def _inequality_constraints_problem(self, problem, dual_variable_ineq):
         A_ineq = problem['A_ineq']

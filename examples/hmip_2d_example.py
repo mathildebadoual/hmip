@@ -12,7 +12,7 @@ q = np.array([-1, -6])
 
 binary_indicator = np.array([1, 0])
 
-ub = np.array([1, 1])
+ub = np.array([1, 2])
 lb = np.array([0, 0])
 
 A_eq = np.array([1, 1])
