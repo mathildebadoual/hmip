@@ -39,9 +39,9 @@ class HopfieldSolver():
                                    smoothness_coef=None,
                                    penalty_eq=0, penalty_ineq=0):
         utils.check_type(len(binary_indicator), lb=lb, ub=ub, binary_indicator=binary_indicator)
-        # TODO: Find how to chose smoothness_coef when using barrier method
+
         if not smoothness_coef:
-            smoothness_coef = 1
+            smoothness_coef = utils.compute_approximate_smoothness_coef(gradient, lb, ub)
 
         problem = dict({
             'objective_function': objective_function,
@@ -59,12 +59,19 @@ class HopfieldSolver():
             'penalty_eq': penalty_eq,
             'penalty_ineq': penalty_ineq
         })
+
         if type(self.beta) == int:
             self.beta = self.beta * np.ones(problem['dim_problem'])
         elif self.beta is None:
             self.beta = np.ones(problem['dim_problem'])
 
         problem['x_0'] = self._compute_x_0(problem)
+
+        if A_eq is not None and len(A_eq.shape) == 1:
+            A_eq.shape = (1, len(A_eq))
+
+        if A_ineq is not None and len(A_ineq.shape) == 1:
+            A_ineq.shape = (1, len(A_ineq))
 
         return problem
 
@@ -185,133 +192,126 @@ class HopfieldSolver():
 
     def _get_dual_variables(self, problem):
         n = problem['dim_problem']
-        rho = 10
         A_ineq = problem['A_ineq']
         A_eq = problem['A_eq']
         b_ineq = problem['b_ineq']
         b_eq = problem['b_eq']
+        lb = problem['lb']
+        ub = problem['ub']
         penalty_ineq = problem['penalty_ineq']
         penalty_eq = problem['penalty_eq']
-        rate = 0.0001
+
+        precision = 10**(-4)/n
+        if A_eq is not None:
+            n_eq = len(A_eq)
+            print('n_eq', n_eq)
+        if A_ineq is not None:
+            n_ineq = len(A_ineq)
 
         def projection(z):
-            z = np.maximum(z, np.zeros(z.shape))
-            z[:n] = np.minimum(z[:n], 1)
+            z[:n] = np.maximum(z[:n], lb)
+            z[:n] = np.minimum(z[:n], ub)
+            if len(z) > n:
+                z[n:] = np.minimum(z[n:], np.zeros(n))
             return z
 
-        # create the dual function:
         if A_ineq is not None and b_ineq is not None and \
                 A_eq is not None and b_eq is not None:
 
+            rate = 1 / (problem['smoothness_coef'] + penalty_eq * max(np.linalg.eigvals(A_eq.T @ A_eq)) +
+                            penalty_ineq * max(np.linalg.eigvals(A_ineq.T @ A_ineq)))
+
+
             def inequality_constraint(variables):
-                return np.dot(A_ineq, variables[:n]) - b_ineq - variables[n:]
+                return A_ineq @ variables[:n] - b_ineq - variables[n:]
 
             def equality_constraint(variables):
-                return np.dot(A_eq, variables[:n]) - b_eq
+                return A_eq @ variables[:n] - b_eq
 
-            def gradient_dual_function(variables, dual_variables_eq,
-                                       dual_variables_ineq):
-                gradient_x_ineq = np.dot(
-                    A_ineq, dual_variables_ineq) + penalty_ineq * np.dot(
-                        A_ineq.T,
-                        (np.dot(A_ineq, variables[:n]) -
-                         b_ineq - variables[n:]))
-                gradient_x_eq = np.dot(
-                             A_eq, dual_variables_eq) + penalty_eq * np.dot(
-                                 A_eq.T, (np.dot(A_eq, variables[:n]) - b_eq))
-                gradient_x = problem['gradient'](
-                    variables[:n]) + gradient_x_ineq + gradient_x_eq
-                gradient_s = - penalty_ineq * inequality_constraint(
-                    variables) - dual_variables_ineq
-                return np.concatenate((gradient_x, gradient_s), axis=0)
+            def gradient_augmented_lagrangian(variables, dual_variables_eq , dual_variables_ineq):
+                gradient_x_ineq = A_ineq.T @ dual_variables_ineq + penalty_ineq * A_ineq.T @ inequality_constraint(variables)
+                gradient_x_eq = A_eq.T @ dual_variables_eq + penalty_eq * A_eq.T @ equality_constraint(variables)
+                gradient_x = problem['gradient'](variables[:n]) + gradient_x_ineq + gradient_x_eq
+                gradient_s = - penalty_ineq * inequality_constraint(variables) - dual_variables_ineq
+                return np.vstack((gradient_x, gradient_s))
 
-            dual_variables_eq = np.zeros(n)
-            dual_variables_ineq = np.zeros(n)
-            next_dual_variables_eq = np.ones(n)
-            next_dual_variables_ineq = np.ones(n)
-            while np.linalg.norm(next_dual_variables_eq -
-                                 dual_variables_eq) > 0.001 and np.linalg.norm(
-                                     next_dual_variables_ineq -
-                                     dual_variables_ineq) > 0.001:
+            dual_variables_eq = np.zeros(n_eq)
+            dual_variables_ineq = np.zeros(n_ineq)
+            next_dual_variables_eq = np.ones(n_eq)
+            next_dual_variables_ineq = np.ones(n_ineq)
+
+            while np.linalg.norm(next_dual_variables_eq - dual_variables_eq) > precision and \
+                    np.linalg.norm(next_dual_variables_ineq - dual_variables_ineq) > precision:
+
                 s_0 = np.zeros(n)
                 x = np.concatenate((problem['x_0'], s_0))
                 next_x = np.ones(x.shape)
                 dual_variables_eq = next_dual_variables_eq
                 dual_variables_ineq = next_dual_variables_ineq
 
-                while np.linalg.norm(next_x - x) > 0.001:
+                while np.linalg.norm(next_x - x) > precision:
                     x = next_x
-                    next_x = projection(x - rate * gradient_dual_function(
-                        x, dual_variables_eq, dual_variables_ineq))
+                    next_x = projection(x - rate * gradient_augmented_lagrangian(x, dual_variables_eq, dual_variables_ineq))
 
-                next_dual_variables_eq = dual_variables_eq + \
-                        rho * equality_constraint(next_x)
-                next_dual_variables_ineq = dual_variables_ineq + \
-                        rho * inequality_constraint(next_x)
+                next_dual_variables_eq = dual_variables_eq + penalty_eq * equality_constraint(next_x)
+                next_dual_variables_ineq = dual_variables_ineq + penalty_ineq * inequality_constraint(next_x)
 
             return dual_variables_eq, dual_variables_ineq
 
         elif A_ineq is not None and b_ineq is not None \
                 and (A_eq or b_eq) is None:
 
+            rate = 1 / (problem['smoothness_coef'] + penalty_ineq * max(np.linalg.eigvals(A_ineq.T @ A_ineq)))
+
             def inequality_constraint(variables):
-                return np.dot(
-                    A_ineq,
-                    variables[:n]) - b_ineq - variables[n:]
+                return A_ineq @ variables[:n] - b_ineq - variables[n:]
 
-            def gradient_dual_function(variables, dual_variables):
-                gradient_x = problem['gradient'](variables[:n]) + \
-                    np.dot(A_ineq, dual_variables) + \
-                    problem['penalty_ineq'] * \
-                    np.dot(A_ineq.T,
-                           (np.dot(A_ineq,
-                                   variables[:n]) - b_ineq - variables[n:]))
-                gradient_s = - penalty_eq * \
-                    inequality_constraint(variables) - dual_variables
-                return np.concatenate((gradient_x, gradient_s), axis=0)
+            def gradient_augmented_lagrangian(variables, dual_variables):
+                gradient_x = problem['gradient'](variables[:n]) + A_ineq.T @ dual_variables + \
+                    problem['penalty_ineq'] * A_ineq.T @ inequality_constraint(variables)
+                gradient_s = - penalty_eq * inequality_constraint(variables) - dual_variables
+                return np.vstack((gradient_x, gradient_s))
 
-            next_dual_variables = np.zeros(n)
-            dual_variables = np.ones(n)
-            while np.linalg.norm(next_dual_variables - dual_variables) > 0.01:
+            next_dual_variables = np.zeros(n_ineq)
+            dual_variables = np.ones(n_ineq)
+
+            while np.linalg.norm(next_dual_variables - dual_variables) > precision:
                 s_0 = np.zeros(n)
                 x = np.concatenate((problem['x_0'], s_0))
                 next_x = np.ones(x.shape)
-                while np.linalg.norm(next_x - x) > 0.001:
+                while np.linalg.norm(next_x - x) > precision:
                     x = next_x
                     dual_variables = next_dual_variables
-                    next_x = projection(
-                        x - rate * gradient_dual_function(x, dual_variables))
-                next_dual_variables = dual_variables + \
-                    rho * inequality_constraint(next_x)
+                    next_x = projection(x - rate * gradient_augmented_lagrangian(x, dual_variables))
+
+                next_dual_variables = dual_variables + penalty_ineq * inequality_constraint(next_x)
 
             return None, next_dual_variables
 
         elif A_eq is not None and b_eq is not None and (
                 A_ineq is None or b_ineq is None):
 
-            def equality_constraint(variables):
-                return np.dot(A_eq, variables[:n]) - b_eq
+            rate = 1 / (problem['smoothness_coef'] + penalty_eq * max(np.linalg.eigvals(A_eq.T @ A_eq)))
 
-            def gradient_dual_function(variables, dual_variables):
-                gradient_x_eq = np.dot(
-                             A_eq, dual_variables) + penalty_eq * np.dot(
-                                 A_eq.T, (np.dot(A_eq, variables[:n]) - b_eq))
-                gradient_x = problem['gradient'](
-                    variables[:n]) + gradient_x_eq
+            def equality_constraint(variables):
+                return A_eq @ variables[:n] - b_eq
+
+            def gradient_augmented_lagrangian(variables, dual_variables):
+                gradient_x_eq = A_eq.T @ dual_variables + penalty_eq * A_eq.T @ equality_constraint(variables)
+                gradient_x = problem['gradient'](variables[:n]) + gradient_x_eq
                 return gradient_x
 
-            next_dual_variables = np.zeros(n)
-            dual_variables = np.ones(n)
-            while np.linalg.norm(next_dual_variables - dual_variables) > 0.001:
+            next_dual_variables = np.zeros(n_eq)
+            dual_variables = np.ones(n_eq)
+
+            while np.linalg.norm(next_dual_variables - dual_variables) > precision:
                 x = problem['x_0']
                 next_x = np.ones(x.shape)
-                while np.linalg.norm(next_x - x) > 0.001:
+                while np.linalg.norm(next_x - x) > precision:
                     x = next_x
                     dual_variables = next_dual_variables
-                    next_x = projection(x - rate * gradient_dual_function(
-                        x, dual_variables))
-                next_dual_variables = dual_variables - \
-                    rho * equality_constraint(next_x)
+                    next_x = projection(x - rate * gradient_augmented_lagrangian(x, dual_variables))
+                next_dual_variables = dual_variables + penalty_eq * equality_constraint(next_x)
 
             return next_dual_variables, None
 
@@ -330,8 +330,7 @@ class HopfieldSolver():
         alpha = np.divide(numerator, denominator)
 
         if self.direction_type == 'stochastic':
-            alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / \
-                (problem['smoothness_coef'] * np.sqrt(k))
+            alpha = (1 - 1 / np.sqrt(k)) * alpha + 1 / (problem['smoothness_coef'] * np.sqrt(k))
 
         return alpha
 
@@ -339,11 +338,11 @@ class HopfieldSolver():
         x_0 = np.copy(problem['x_0'])
         if x_0.all() == None or not utils.is_in_box(x_0, problem['ub'],
                                               problem['lb']):
-            x_0 = problem['lb'] + \
-                (problem['ub'] - problem['lb']) / 2
+            x_0 = (problem['ub'] + problem['lb']) / 2
+
         n = len(x_0)
         iterations = 0
-        max_iterations = 10
+        max_iterations = 10**3
         grad_f = problem['gradient'](x_0)
         if np.linalg.norm(grad_f) == 0:
             grad_f = (problem['smoothness_coef'] / 10) *\
@@ -359,10 +358,8 @@ class HopfieldSolver():
                 x_0 = x_0 + (1 / problem['smoothness_coef']) * np.multiply(
                     grad_f, np.ones((n,)) - problem['binary_indicator'])
             iterations += 1
-
-        return self._activation(x_0,
-                                problem['ub'] - self.ascent_stop_criterion,
-                                problem['lb'] + self.ascent_stop_criterion)
+        return np.minimum(np.maximum(x_0, problem['lb'] + self.ascent_stop_criterion), problem['ub']
+                          - self.ascent_stop_criterion)
 
     def _stopping_criterion_met(self, x, grad_f, iterations, problem):
         if iterations >= self.max_iterations - 1:
@@ -380,6 +377,15 @@ class HopfieldSolver():
             else:
                 return False
 
+    def _compute_binary_absorption_mask(self, x, problem):
+        n = np.size(x)
+        binary_absorption_mask = np.ones(n)
+        for i in range(n):
+            if problem['binary_indicator'][i]:
+                if x[i] == problem['ub'][i] or x[i] == problem['lb'][i]:
+                    binary_absorption_mask[i] = 0
+        return binary_absorption_mask
+
     def _find_direction(self, x, grad_f, problem):
         # TODO(Mathilde): Here sometimes there is no solution
         n = np.size(x)
@@ -389,7 +395,7 @@ class HopfieldSolver():
         # classic gradient
         if (self.direction_type == 'classic') \
                 or (self.direction_type == 'stochastic'):
-            if self.absorption_criterion is not None:
+            if self.absorption_criterion is not None: # TODO That does not seem right
                 direction = - grad_f
             else:
                 direction = - np.multiply(binary_absorption_mask, grad_f)
@@ -402,6 +408,7 @@ class HopfieldSolver():
         elif self.direction_type == 'binary' \
                 or self.direction_type == 'soft_binary':
             if self.direction_type == 'soft_binary':
+                # TODO check that : definition of d looks weird
                 b = np.multiply(
                     self._activation(x, problem['ub'], problem['lb']) + 1 / 2
                     * (problem['lb'] - problem['ub']),
@@ -414,7 +421,7 @@ class HopfieldSolver():
                 h = - grad_f
 
             g = - np.multiply(self._proxy_distance_vector(x), grad_f)
-
+# TODO check that next part
             if self.absorption_criterion is not None:
                 b = np.multiply(binary_absorption_mask, b)
                 h = np.multiply(binary_absorption_mask, h)
@@ -434,14 +441,7 @@ class HopfieldSolver():
 
         return direction
 
-    def _compute_binary_absorption_mask(self, x, problem):
-        n = np.size(x)
-        binary_absorption_mask = np.ones(n)
-        for i in range(n):
-            if problem['binary_indicator'][i]:
-                if x[i] == problem['ub'][i] or x[i] == problem['lb'][i]:
-                    binary_absorption_mask[i] = 0
-        return binary_absorption_mask
+
 
     def _absorb_solution_to_limits(self, x, problem):
         for i in range(len(x)):
@@ -455,13 +455,11 @@ class HopfieldSolver():
 
     def _inverse_activation(self, x, ub, lb):
         z = np.divide((x - lb), (ub - lb))
-        return lb + np.multiply(ub - lb,
-                                self.inverse_activation_function(z, self.beta))
+        return lb + np.multiply(ub - lb, self.inverse_activation_function(z, self.beta))
 
     def _activation(self, x, ub, lb):
         z = np.divide((x - lb), (ub - lb))
-        return lb + np.multiply(ub - lb,
-                                self.activation_function(z, self.beta))
+        return lb + np.multiply(ub - lb, self.activation_function(z, self.beta))
 
     def _proxy_distance_vector(self, x, ub, lb):
         z = np.divide((x - lb), (ub - lb))
@@ -604,3 +602,6 @@ class HopfieldSolver():
             return problem['gradient'](variable)
 
         return objective_function, gradient
+
+
+
