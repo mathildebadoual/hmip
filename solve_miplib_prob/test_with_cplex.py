@@ -5,6 +5,7 @@ import cplex
 import hmip
 import numpy as np
 from cplex.exceptions import CplexSolverError
+import os.path
 
 
 def adapt_lp_file_to_numpy(filename):
@@ -69,7 +70,7 @@ def update_portfolio_optim_problem(c):
     quadratic_constraint = c.quadratic_constraints.get_quadratic_components(0)
     n = len(quadratic_constraint.ind1)
     c.quadratic_constraints.delete(0)
-    c.objective.set_quadratic(float(1)*np.ones(n))
+    c.objective.set_quadratic(np.ones(n))
     return c
 
 
@@ -77,7 +78,8 @@ def solve_with_cplex(filename):
     c = cplex.Cplex(filename)
 
     if 'portfol_classical' in filename:
-        c = update_portfolio_optim_problem(c)
+        # c = update_portfolio_optim_problem(c)
+        pass
 
     alg = c.parameters.lpmethod.values
     c.parameters.lpmethod.set(alg.auto)
@@ -120,8 +122,6 @@ def solve_with_cplex(filename):
     else:
         basis = None
 
-    print()
-
     x = c.solution.get_values(0, c.variables.get_num() - 1)
     # because we're querying the entire solution vector,
     # x = c.solution.get_values()
@@ -155,4 +155,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # adapt_lp_file_to_numpy(args.filename)
-    solve_with_hmip(args.filename)
+    dir_path = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(dir_path, 'problems_lp', args.filename)
+    print('---------- Solving with CPLEX ----------')
+    solve_with_cplex(file_path)
+    print('---------- Solving with HMIP ----------')
+    solve_with_hmip(file_path)

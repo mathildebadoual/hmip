@@ -2,6 +2,7 @@ import math
 
 import hmip.utils as utils
 import numpy as np
+import logging
 
 
 class HopfieldSolver():
@@ -38,10 +39,17 @@ class HopfieldSolver():
                                    A_ineq=None, b_ineq=None, x_0=None,
                                    smoothness_coef=None,
                                    penalty_eq=0, penalty_ineq=0):
+        print('Set up optimization problem ....')
         utils.check_type(len(binary_indicator), lb=lb, ub=ub, binary_indicator=binary_indicator)
 
         if not smoothness_coef:
             smoothness_coef = utils.compute_approximate_smoothness_coef(gradient, lb, ub)
+
+        if A_eq is not None:
+            A_eq = A_eq.reshape((1, -1))
+
+        if A_ineq is not None:
+            A_ineq = A_ineq.reshape((1, -1))
 
         problem = dict({
             'objective_function': objective_function,
@@ -67,15 +75,13 @@ class HopfieldSolver():
 
         problem['x_0'] = self._compute_x_0(problem)
 
-        if A_eq is not None and len(A_eq.shape) == 1:
-            A_eq.shape = (1, len(A_eq))
-
-        if A_ineq is not None and len(A_ineq.shape) == 1:
-            A_ineq.shape = (1, len(A_ineq))
+        print('.... Optimization problem set up.')
 
         return problem
 
     def solve(self, problem):
+        print('Solving optimization problem ....')
+
         x = np.nan * np.ones((problem['dim_problem'], self.max_iterations))
         x_h = np.nan * np.ones((problem['dim_problem'], self.max_iterations))
         f_val_hist = np.nan * np.ones(self.max_iterations)
@@ -86,6 +92,7 @@ class HopfieldSolver():
         b_ineq = problem['b_ineq']
         b_eq = problem['b_eq']
 
+        print('Computing the dual variable ....')
         if (A_eq is not None and b_eq is not None) or \
                 (A_ineq is not None and b_ineq is not None):
             dual_variables_eq, dual_variables_ineq = self._get_dual_variables(
@@ -112,6 +119,8 @@ class HopfieldSolver():
         else:
             objective_function, gradient = \
                 self._no_constraints_problem(problem)
+
+        print('.... Dual variable computed.')
 
         x[:, 0] = problem['x_0']
         x_h[:, 0] = self._inverse_activation(
@@ -201,19 +210,19 @@ class HopfieldSolver():
         penalty_ineq = problem['penalty_ineq']
         penalty_eq = problem['penalty_eq']
 
+        # TODO(Mathilde): add as a class variable
         precision = 10**(-4)/n
         if A_eq is not None:
-            n_eq = len(A_eq)
-            print('n_eq', n_eq)
+            n_eq = A_eq.shape[0]
         if A_ineq is not None:
-            n_ineq = len(A_ineq)
+            n_ineq = A_ineq.shape[0]
 
-        def projection(z):
-            z[:n] = np.maximum(z[:n], lb)
-            z[:n] = np.minimum(z[:n], ub)
-            if len(z) > n:
-                z[n:] = np.minimum(z[n:], np.zeros(n))
-            return z
+        def inequality_constraint(variables):
+            return A_ineq @ variables[:n] - b_ineq - variables[n:]
+
+        def equality_constraint(variables):
+            return A_eq @ variables[:n] - b_eq
+
 
         if A_ineq is not None and b_ineq is not None and \
                 A_eq is not None and b_eq is not None:
@@ -222,18 +231,12 @@ class HopfieldSolver():
                             penalty_ineq * max(np.linalg.eigvals(A_ineq.T @ A_ineq)))
 
 
-            def inequality_constraint(variables):
-                return A_ineq @ variables[:n] - b_ineq - variables[n:]
-
-            def equality_constraint(variables):
-                return A_eq @ variables[:n] - b_eq
-
             def gradient_augmented_lagrangian(variables, dual_variables_eq , dual_variables_ineq):
                 gradient_x_ineq = A_ineq.T @ dual_variables_ineq + penalty_ineq * A_ineq.T @ inequality_constraint(variables)
                 gradient_x_eq = A_eq.T @ dual_variables_eq + penalty_eq * A_eq.T @ equality_constraint(variables)
                 gradient_x = problem['gradient'](variables[:n]) + gradient_x_ineq + gradient_x_eq
                 gradient_s = - penalty_ineq * inequality_constraint(variables) - dual_variables_ineq
-                return np.vstack((gradient_x, gradient_s))
+                return np.concatenate((gradient_x, gradient_s))
 
             dual_variables_eq = np.zeros(n_eq)
             dual_variables_ineq = np.zeros(n_ineq)
@@ -243,7 +246,7 @@ class HopfieldSolver():
             while np.linalg.norm(next_dual_variables_eq - dual_variables_eq) > precision and \
                     np.linalg.norm(next_dual_variables_ineq - dual_variables_ineq) > precision:
 
-                s_0 = np.zeros(n)
+                s_0 = np.zeros(n_ineq)
                 x = np.concatenate((problem['x_0'], s_0))
                 next_x = np.ones(x.shape)
                 dual_variables_eq = next_dual_variables_eq
@@ -251,7 +254,8 @@ class HopfieldSolver():
 
                 while np.linalg.norm(next_x - x) > precision:
                     x = next_x
-                    next_x = projection(x - rate * gradient_augmented_lagrangian(x, dual_variables_eq, dual_variables_ineq))
+                    next_x = utils.projection(x - rate * gradient_augmented_lagrangian(x,
+                        dual_variables_eq, dual_variables_ineq), n, lb, ub)
 
                 next_dual_variables_eq = dual_variables_eq + penalty_eq * equality_constraint(next_x)
                 next_dual_variables_ineq = dual_variables_ineq + penalty_ineq * inequality_constraint(next_x)
@@ -262,9 +266,6 @@ class HopfieldSolver():
                 and (A_eq or b_eq) is None:
 
             rate = 1 / (problem['smoothness_coef'] + penalty_ineq * max(np.linalg.eigvals(A_ineq.T @ A_ineq)))
-
-            def inequality_constraint(variables):
-                return A_ineq @ variables[:n] - b_ineq - variables[n:]
 
             def gradient_augmented_lagrangian(variables, dual_variables):
                 gradient_x = problem['gradient'](variables[:n]) + A_ineq.T @ dual_variables + \
@@ -282,7 +283,7 @@ class HopfieldSolver():
                 while np.linalg.norm(next_x - x) > precision:
                     x = next_x
                     dual_variables = next_dual_variables
-                    next_x = projection(x - rate * gradient_augmented_lagrangian(x, dual_variables))
+                    next_x = utils.projection(x - rate * gradient_augmented_lagrangian(x, dual_variables), n, lb, up)
 
                 next_dual_variables = dual_variables + penalty_ineq * inequality_constraint(next_x)
 
@@ -292,9 +293,6 @@ class HopfieldSolver():
                 A_ineq is None or b_ineq is None):
 
             rate = 1 / (problem['smoothness_coef'] + penalty_eq * max(np.linalg.eigvals(A_eq.T @ A_eq)))
-
-            def equality_constraint(variables):
-                return A_eq @ variables[:n] - b_eq
 
             def gradient_augmented_lagrangian(variables, dual_variables):
                 gradient_x_eq = A_eq.T @ dual_variables + penalty_eq * A_eq.T @ equality_constraint(variables)
@@ -310,7 +308,7 @@ class HopfieldSolver():
                 while np.linalg.norm(next_x - x) > precision:
                     x = next_x
                     dual_variables = next_dual_variables
-                    next_x = projection(x - rate * gradient_augmented_lagrangian(x, dual_variables))
+                    next_x = utils.projection(x - rate * gradient_augmented_lagrangian(x, dual_variables), n, lb, ub)
                 next_dual_variables = dual_variables + penalty_eq * equality_constraint(next_x)
 
             return next_dual_variables, None

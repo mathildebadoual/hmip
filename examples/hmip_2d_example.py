@@ -10,13 +10,16 @@ H = np.array([
 ])
 q = np.array([-1, -6])
 
-binary_indicator = np.array([1, 0])
+binary_indicator = np.array([0, 0])
 
-ub = np.array([1, 2])
+ub = np.array([1, 1])
 lb = np.array([0, 0])
 
-A_eq = np.array([1, 1])
-b_eq = np.array([0.9])
+A_eq = np.array([[-3, 2]])
+b_eq = np.array([0.5])
+
+A_ineq = np.array([[-3, 2]])
+b_ineq = np.array([0.5])
 
 penalty_eq = 10
 penalty_ineq = 10
@@ -42,6 +45,8 @@ problem = solver.setup_optimization_problem(
     binary_indicator,
     A_eq=A_eq,
     b_eq=b_eq,
+    A_ineq=A_ineq,
+    b_ineq=b_ineq,
     smoothness_coef=None,
     penalty_eq=penalty_eq,
     penalty_ineq=penalty_ineq)
@@ -94,6 +99,8 @@ problem = solver.setup_optimization_problem(
     binary_indicator,
     A_eq=A_eq,
     b_eq=b_eq,
+    A_ineq=A_ineq,
+    b_ineq=b_ineq,
     smoothness_coef=smoothness_coefficient,
     penalty_eq=penalty_eq,
     penalty_ineq=penalty_ineq

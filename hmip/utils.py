@@ -10,6 +10,14 @@ def smoothness_coefficient(H):
     return np.absolute(np.max(np.linalg.eigvals(H)))
 
 
+def projection(z, n, lb, ub):
+    z[:n] = np.maximum(z[:n], lb)
+    z[:n] = np.maximum(z[:n], ub)
+    if len(z) > n:
+        z[n:] = np.minimum(z[n:], np.zeros(len(z) - n))
+    return z
+
+
 def compute_approximate_smoothness_coef(gradient, lb, ub):
     n = len(lb)
     n_rand = 1000 * n
