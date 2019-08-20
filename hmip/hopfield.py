@@ -126,7 +126,7 @@ class HopfieldSolver():
         x_h[:, 0] = self._inverse_activation(
             problem['x_0'], problem['lb'], problem['ub'])
         if A_ineq is not None and b_ineq is not None:
-            s = np.nan * np.ones((problem['num_ineq_cons'], self.max_iterations))
+            s = np.nan * np.ones((len(b_ineq), self.max_iterations))
             s[:, 0] = 0 * problem['b_ineq']
             f_val_hist[0] = objective_function((x[:, 0], s[:, 0]))
             grad_f = gradient((x[:, 0], s[:, 0]))
