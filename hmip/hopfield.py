@@ -7,9 +7,9 @@ import logging
 
 class HopfieldSolver():
     def __init__(self, activation_type='sin',
-                 gamma=0.95, theta=0.05, ascent_stop_criterion=0.06,
-                 absorption_criterion=None, max_iterations=100,
-                 stopping_criterion_type='gradient', direction_type='classic',
+                 gamma=0.9, theta=0.01, ascent_stop_criterion=0.01,
+                 absorption_criterion=None, max_iterations=500,
+                 stopping_criterion_type='gradient', direction_type='binary',
                  step_type='classic',
                  initial_ascent_type='binary_neutral_ascent',
                  precision_stopping_criterion=10 ** -6,
@@ -64,6 +64,7 @@ class HopfieldSolver():
             'smoothness_coef': smoothness_coef,
             'x_0': x_0,
             'dim_problem': len(binary_indicator),
+            'num_ineq_cons': len(b_ineq),
             'penalty_eq': penalty_eq,
             'penalty_ineq': penalty_ineq
         })
@@ -95,26 +96,22 @@ class HopfieldSolver():
         print('Computing the dual variable ....')
         if (A_eq is not None and b_eq is not None) or \
                 (A_ineq is not None and b_ineq is not None):
-            dual_variables_eq, dual_variables_ineq = self._get_dual_variables(
-                problem)
+            dual_variables_eq, dual_variables_ineq = self._get_dual_variables(problem)
 
         if A_ineq is not None and b_ineq is not None and \
                 A_eq is not None and b_eq is not None:
             objective_function, gradient, gradient_wrt_slack_variable = \
-                self._all_constraints_problem(
-                    problem, dual_variables_eq, dual_variables_ineq)
+                self._all_constraints_problem(problem, dual_variables_eq, dual_variables_ineq)
 
         elif A_ineq is not None and b_ineq is not None and (
                 A_eq is None or b_eq is None):
             objective_function, gradient, gradient_wrt_slack_variable = \
-                self._inequality_constraints_problem(
-                    problem, dual_variables_ineq)
+                self._inequality_constraints_problem(problem, dual_variables_ineq)
 
         elif A_eq is not None and b_eq is not None and (
                 A_ineq is None or b_ineq is None):
             objective_function, gradient = \
-                self._equality_constraints_problem(
-                    problem, dual_variables_eq)
+                self._equality_constraints_problem(problem, dual_variables_eq)
 
         else:
             objective_function, gradient = \
@@ -123,12 +120,10 @@ class HopfieldSolver():
         print('.... Dual variable computed.')
 
         x[:, 0] = problem['x_0']
-        x_h[:, 0] = self._inverse_activation(
-            problem['x_0'], problem['lb'], problem['ub'])
+        x_h[:, 0] = self._inverse_activation(problem['x_0'], problem['lb'], problem['ub'])
         if A_ineq is not None and b_ineq is not None:
-            s = np.nan * \
-                np.ones((problem['dim_problem'], self.max_iterations))
-            s[:, 0] = 0 * problem['x_0']
+            s = np.nan * np.ones((problem['num_ineq_cons'], self.max_iterations))
+            s[:, 0] = 0 * problem['b_ineq']
             f_val_hist[0] = objective_function((x[:, 0], s[:, 0]))
             grad_f = gradient((x[:, 0], s[:, 0]))
         else:
@@ -169,15 +164,11 @@ class HopfieldSolver():
 
             else:
                 alpha = self._alpha_hop(x[:, k], grad_f, k, direction, problem)
-                x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(
-                    x_h[:, k], alpha, direction, problem)
+                x[:, k + 1], x_h[:, k + 1] = self._hopfield_update(x_h[:, k], alpha, direction, problem)
                 if A_ineq is not None and b_ineq is not None:
-                    s[:, k + 1] = s[:, k + 1] = np.minimum(np.zeros(
-                        len(s[:, k + 1])), s[:, k] - 1 / problem[
-                        'penalty_ineq'] * gradient_wrt_slack_variable(
-                            (x[:, k + 1], s[:, k])))
-                    f_val_hist[k + 1] = objective_function(
-                        (x[:, k + 1], s[:, k + 1]))
+                    s[:, k+1] = s[:, k] - 1 / problem['penalty_ineq'] * gradient_wrt_slack_variable((x[:, k + 1], s[:, k]))
+                    s[:, k + 1] = np.minimum(np.zeros(problem['num_ineq_cons']), s[:, k+1])
+                    f_val_hist[k + 1] = objective_function((x[:, k + 1], s[:, k + 1]))
                     grad_f = gradient((x[:, k + 1], s[:, k + 1]))
                 else:
                     f_val_hist[k + 1] = objective_function(x[:, k + 1])
@@ -418,7 +409,7 @@ class HopfieldSolver():
                     problem['binary_indicator'])
                 h = - grad_f
 
-            g = - np.multiply(self._proxy_distance_vector(x), grad_f)
+            g = - np.multiply(self._proxy_distance_vector(x, problem['ub'], problem['lb']), grad_f)
 # TODO check that next part
             if self.absorption_criterion is not None:
                 b = np.multiply(binary_absorption_mask, b)
@@ -539,56 +530,36 @@ class HopfieldSolver():
         b_eq = problem['b_eq']
 
         def inequality_constraint(optimization_variable, slack_variable):
-            return np.dot(A_ineq,
-                          optimization_variable)
-            - b_ineq - slack_variable
+            return np.dot(A_ineq, optimization_variable) - b_ineq - slack_variable
 
         def equality_constraint(optimization_variable):
-            return np.dot(A_eq,
-                          optimization_variable) - b_eq
+            return np.dot(A_eq, optimization_variable) - b_eq
 
         def objective_function(variables):
             optimization_variable, slack_variable = variables
-            main_function = problem['objective_function'](
-                optimization_variable)
-            ineq_cst = inequality_constraint(
-                optimization_variable,
-                slack_variable)
-            equ_cst = equality_constraint(
-                optimization_variable)
-            inequality_term = np.dot(
-                dual_variable_ineq.T, ineq_cst)
-            + problem['penalty_ineq'] / 2 * np.linalg.norm(
-                ineq_cst, 2)
-            equality_term = np.dot(
-                dual_variable_eq.T, equ_cst)
-            + problem['penalty_eq'] / 2 * np.linalg.norm(
-                equ_cst, 2)
+            main_function = problem['objective_function'](optimization_variable)
+            ineq_cst = inequality_constraint(optimization_variable, slack_variable)
+            equ_cst = equality_constraint(optimization_variable)
+            inequality_term = np.dot(dual_variable_ineq.T, ineq_cst)
+            + problem['penalty_ineq'] / 2 * np.linalg.norm(ineq_cst, 2)
+            equality_term = np.dot(dual_variable_eq.T, equ_cst)
+            + problem['penalty_eq'] / 2 * np.linalg.norm(equ_cst, 2)
             return main_function + inequality_term + equality_term
 
         def gradient(variables):
             optimization_variable, slack_variable = variables
             main_function = problem['gradient'](optimization_variable)
-            equ_cst = equality_constraint(
-                optimization_variable)
-            ineq_cst = inequality_constraint(
-                optimization_variable,
-                slack_variable)
-            equality_term = np.dot(
-                A_eq.T,
-                dual_variable_eq) + problem['penalty_eq'] * np.dot(
-                    A_eq.T, equ_cst)
-            inequality_term = np.dot(
-                A_ineq.T,
-                dual_variable_ineq) + problem[
-                    'penalty_ineq'] * np.dot(
-                A_ineq.T, ineq_cst)
+            equ_cst = equality_constraint(optimization_variable)
+            ineq_cst = inequality_constraint(optimization_variable, slack_variable)
+            equality_term = np.dot(A_eq.T, dual_variable_eq) + problem['penalty_eq'] * np.dot(A_eq.T, equ_cst)
+            inequality_term = np.dot(A_ineq.T, dual_variable_ineq) +\
+                              problem['penalty_ineq'] * np.dot(A_ineq.T, ineq_cst)
             return main_function + equality_term + inequality_term
 
         def gradient_wrt_slack_variable(variables):
             optimization_variable, slack_variable = variables
-            return - problem['penalty_ineq'] * inequality_constraint(
-                optimization_variable, slack_variable) - dual_variable_ineq
+            return - problem['penalty_ineq'] * inequality_constraint(optimization_variable, slack_variable) -\
+                   dual_variable_ineq
 
         return objective_function, gradient, gradient_wrt_slack_variable
 
