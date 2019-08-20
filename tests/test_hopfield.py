@@ -182,11 +182,15 @@ class TestOthers(unittest.TestCase):
         x_0 = self.lb + (self.ub - self.lb) / 2
         beta = 0.5 * x_0
         activation_types = ['pwl', 'exp', 'sin', 'identity', 'tanh']
-        solutions = [[1, 1], [0.5, 0.5], [1, 1], [0, 0], [1, 1]]
 
-        for i, activation_type in enumerate(activation_types):
+        for activation_type in activation_types:
             solver = HopfieldSolver(max_iterations=self.k_max,
                                     activation_type=activation_type,
                                     beta=beta)
+
             self.assertTrue(
-                np.array_equal(solutions[i], solver._activation(x_0, self.lb, self.ub)))
+                np.array_equal(x_0, solver._activation(x_0, self.lb, self.ub)))
+
+
+if __name__ == '__main__':
+    unittest.main()

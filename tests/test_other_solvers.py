@@ -36,3 +36,7 @@ class TestCvxpy(unittest.TestCase):
             smoothness_coef=self.smoothness_coefficient)
         x_hopfield, _, _, _, _ = solver.solve(problem)
         self.assertTrue(np.allclose(x_cvxpy, x_hopfield[:, -1], rtol=0.1), 2)
+
+
+if __name__ == '__main__':
+    unittest.main()
