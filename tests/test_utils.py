@@ -28,13 +28,13 @@ class TestProxyDistanceVector(unittest.TestCase):
         x = 1/2 * np.ones(self.dim)
         beta = np.ones(self.dim)
         output = utils.proxy_distance_vector_tanh(x, beta)
-        self.assertTrue(np.array_equal(output, np.ones(self.dim)))
+        self.assertTrue(np.array_equal(output, np.zeros(self.dim)))
 
     def test_pwl(self):
         x = 1 / 2 * np.ones(self.dim)
         beta = np.ones(self.dim)
         output = utils.proxy_distance_vector_pwl(x, beta)
-        self.assertTrue(np.array_equal(output, beta))
+        self.assertTrue(np.array_equal(output, np.zeros(self.dim)))
 
         x = 2 * np.ones(self.dim)
         beta = np.ones(self.dim)
@@ -85,13 +85,13 @@ class TestActivationFunction(unittest.TestCase):
         x = np.ones(self.dim)
         beta = np.ones(self.dim)
         output = utils.activation_sin(x, beta)
-        self.assertTrue(np.array_equal(np.round_(output, decimals=8), 0.92073549 * x))
+        self.assertTrue(np.array_equal(np.round_(output, decimals=8), np.ones(self.dim)))
 
     def test_exp(self):
         x = 1 / 2 * np.ones(self.dim)
         beta = np.ones(self.dim)
         output = utils.activation_exp(x, beta)
-        self.assertTrue(np.array_equal(output, 1 / 2 * np.ones(self.dim)))
+        self.assertTrue(np.array_equal(output, 0.5 * np.ones(self.dim)))
 
     def test_identity(self):
         x = 1 / 2 * np.ones(self.dim)
@@ -104,10 +104,10 @@ class TestInverseActivationFunction(unittest.TestCase):
         self.dim = 10
 
     def test_tanh(self):
-        x = 1/2 * np.ones(self.dim)
+        x = 0.1 *  np.ones(self.dim)
         beta = np.ones(self.dim)
         output = utils.inverse_activation_tanh(x, beta)
-        self.assertTrue(np.array_equal(output, x))
+        self.assertTrue(np.allclose(output, -0.54930614 * np.ones(self.dim), rtol=0.01))
 
     def test_pwl(self):
         x = 1 / 2 * np.ones(self.dim)

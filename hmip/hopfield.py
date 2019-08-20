@@ -7,8 +7,8 @@ import logging
 
 class HopfieldSolver():
     def __init__(self, activation_type='sin',
-                 gamma=0.95, theta=0.05, ascent_stop_criterion=0.06,
-                 absorption_criterion=None, max_iterations=100,
+                 gamma=0.90, theta=0.01, ascent_stop_criterion=0.01,
+                 absorption_criterion=None, max_iterations=500,
                  stopping_criterion_type='gradient', direction_type='classic',
                  step_type='classic',
                  initial_ascent_type='binary_neutral_ascent',
@@ -45,10 +45,10 @@ class HopfieldSolver():
         if not smoothness_coef:
             smoothness_coef = utils.compute_approximate_smoothness_coef(gradient, lb, ub)
 
-        if A_eq is not None:
+        if A_eq is not None and len(A_eq.shape)==1:
             A_eq = A_eq.reshape((1, -1))
 
-        if A_ineq is not None:
+        if A_ineq is not None and len(A_ineq.shape)==1:
             A_ineq = A_ineq.reshape((1, -1))
 
         problem = dict({
@@ -126,9 +126,8 @@ class HopfieldSolver():
         x_h[:, 0] = self._inverse_activation(
             problem['x_0'], problem['lb'], problem['ub'])
         if A_ineq is not None and b_ineq is not None:
-            s = np.nan * \
-                np.ones((problem['dim_problem'], self.max_iterations))
-            s[:, 0] = 0 * problem['x_0']
+            s = np.nan * np.ones((problem['num_ineq_cons'], self.max_iterations))
+            s[:, 0] = 0 * problem['b_ineq']
             f_val_hist[0] = objective_function((x[:, 0], s[:, 0]))
             grad_f = gradient((x[:, 0], s[:, 0]))
         else:
@@ -218,22 +217,21 @@ class HopfieldSolver():
             n_ineq = A_ineq.shape[0]
 
         def inequality_constraint(variables):
-            return A_ineq @ variables[:n] - b_ineq - variables[n:]
+            return np.dot(A_ineq, variables[:n]) - b_ineq - variables[n:]
 
         def equality_constraint(variables):
-            return A_eq @ variables[:n] - b_eq
-
+            return np.dot(A_eq, variables[:n]) - b_eq
 
         if A_ineq is not None and b_ineq is not None and \
                 A_eq is not None and b_eq is not None:
 
-            rate = 1 / (problem['smoothness_coef'] + penalty_eq * max(np.linalg.eigvals(A_eq.T @ A_eq)) +
-                            penalty_ineq * max(np.linalg.eigvals(A_ineq.T @ A_ineq)))
+            rate = 1 / (problem['smoothness_coef'] + penalty_eq * max(np.linalg.eigvals(np.dot(A_eq.T, A_eq))) +
+                            penalty_ineq * max(np.linalg.eigvals(np.dot(A_ineq.T, A_ineq))))
 
 
             def gradient_augmented_lagrangian(variables, dual_variables_eq , dual_variables_ineq):
-                gradient_x_ineq = A_ineq.T @ dual_variables_ineq + penalty_ineq * A_ineq.T @ inequality_constraint(variables)
-                gradient_x_eq = A_eq.T @ dual_variables_eq + penalty_eq * A_eq.T @ equality_constraint(variables)
+                gradient_x_ineq = np.dot(A_ineq.T, dual_variables_ineq) + penalty_ineq * np.dot(A_ineq.T, inequality_constraint(variables))
+                gradient_x_eq = np.dot(A_eq.T, dual_variables_eq) + penalty_eq * np.dot(A_eq.T, equality_constraint(variables))
                 gradient_x = problem['gradient'](variables[:n]) + gradient_x_ineq + gradient_x_eq
                 gradient_s = - penalty_ineq * inequality_constraint(variables) - dual_variables_ineq
                 return np.concatenate((gradient_x, gradient_s))
@@ -265,13 +263,13 @@ class HopfieldSolver():
         elif A_ineq is not None and b_ineq is not None \
                 and (A_eq or b_eq) is None:
 
-            rate = 1 / (problem['smoothness_coef'] + penalty_ineq * max(np.linalg.eigvals(A_ineq.T @ A_ineq)))
+            rate = 1 / (problem['smoothness_coef'] + penalty_ineq * max(np.linalg.eigvals(np.dot(A_ineq.T, A_ineq))))
 
             def gradient_augmented_lagrangian(variables, dual_variables):
-                gradient_x = problem['gradient'](variables[:n]) + A_ineq.T @ dual_variables + \
-                    problem['penalty_ineq'] * A_ineq.T @ inequality_constraint(variables)
+                gradient_x = problem['gradient'](variables[:n]) + np.dot(A_ineq.T, dual_variables) + \
+                    penalty_ineq * np.dot(A_ineq.T, inequality_constraint(variables))
                 gradient_s = - penalty_eq * inequality_constraint(variables) - dual_variables
-                return np.vstack((gradient_x, gradient_s))
+                return np.concatenate((gradient_x, gradient_s))
 
             next_dual_variables = np.zeros(n_ineq)
             dual_variables = np.ones(n_ineq)
@@ -283,7 +281,7 @@ class HopfieldSolver():
                 while np.linalg.norm(next_x - x) > precision:
                     x = next_x
                     dual_variables = next_dual_variables
-                    next_x = utils.projection(x - rate * gradient_augmented_lagrangian(x, dual_variables), n, lb, up)
+                    next_x = utils.projection(x - rate * gradient_augmented_lagrangian(x, dual_variables), n, lb, ub)
 
                 next_dual_variables = dual_variables + penalty_ineq * inequality_constraint(next_x)
 
@@ -292,10 +290,10 @@ class HopfieldSolver():
         elif A_eq is not None and b_eq is not None and (
                 A_ineq is None or b_ineq is None):
 
-            rate = 1 / (problem['smoothness_coef'] + penalty_eq * max(np.linalg.eigvals(A_eq.T @ A_eq)))
+            rate = 1 / (problem['smoothness_coef'] + penalty_eq * max(np.linalg.eigvals(np.dot(A_eq.T, A_eq))))
 
             def gradient_augmented_lagrangian(variables, dual_variables):
-                gradient_x_eq = A_eq.T @ dual_variables + penalty_eq * A_eq.T @ equality_constraint(variables)
+                gradient_x_eq = np.dot(A_eq.T, dual_variables) + penalty_eq * np.dot(A_eq.T, equality_constraint(variables))
                 gradient_x = problem['gradient'](variables[:n]) + gradient_x_eq
                 return gradient_x
 
@@ -418,7 +416,7 @@ class HopfieldSolver():
                     problem['binary_indicator'])
                 h = - grad_f
 
-            g = - np.multiply(self._proxy_distance_vector(x), grad_f)
+            g = - np.multiply(self._proxy_distance_vector(x, problem['ub'], problem['lb']), grad_f)
 # TODO check that next part
             if self.absorption_criterion is not None:
                 b = np.multiply(binary_absorption_mask, b)
