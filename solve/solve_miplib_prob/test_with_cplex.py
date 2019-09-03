@@ -5,7 +5,6 @@ import cplex
 import hmip
 import numpy as np
 from cplex.exceptions import CplexSolverError
-import os.path
 
 
 def adapt_lp_file_to_numpy(filename):
@@ -58,28 +57,27 @@ def solve_with_hmip(filename):
                                                 b_eq=b_eq,
                                                 A_ineq=A_ineq,
                                                 b_ineq=b_ineq,
-                                                penalty_eq=100,
-                                                penalty_ineq=100)
+                                                penalty_eq=10,
+                                                penalty_ineq=10)
 
     x, x_h, f_val_hist, step_size, other_dict = solver.solve(problem)
 
     print(x[:, -1])
-
+    print(binary_indicator)
 
 def update_portfolio_optim_problem(c):
     quadratic_constraint = c.quadratic_constraints.get_quadratic_components(0)
     n = len(quadratic_constraint.ind1)
     c.quadratic_constraints.delete(0)
-    c.objective.set_quadratic(np.ones(n))
+    c.objective.set_quadratic(float(1)*np.ones(n))
     return c
 
 
 def solve_with_cplex(filename):
     c = cplex.Cplex(filename)
 
-    if 'portfol_classical' in filename:
-        # c = update_portfolio_optim_problem(c)
-        pass
+    #if 'portfol_classical' in filename:
+    #    c = update_portfolio_optim_problem(c)
 
     alg = c.parameters.lpmethod.values
     c.parameters.lpmethod.set(alg.auto)
@@ -122,6 +120,8 @@ def solve_with_cplex(filename):
     else:
         basis = None
 
+    print()
+
     x = c.solution.get_values(0, c.variables.get_num() - 1)
     # because we're querying the entire solution vector,
     # x = c.solution.get_values()
@@ -149,15 +149,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--filename',
                         '-f',
-                        default='toroidal2g20_5555.lp',
+                        default='portfol_classical050_1.lp',
                         help='.lp file path',
                         type=str)
     args = parser.parse_args()
 
-    # adapt_lp_file_to_numpy(args.filename)
-    dir_path = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(dir_path, 'problems_lp', args.filename)
-    print('---------- Solving with CPLEX ----------')
+    import os
+
+    main_path = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(main_path, 'problems_lp', args.filename)
+
     solve_with_cplex(file_path)
-    print('---------- Solving with HMIP ----------')
     solve_with_hmip(file_path)

@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 import hmip
 
 
@@ -19,6 +20,8 @@ def save_stats(x, x_h, f_val_hist, step_size, other_dict):
     print(x_h.shape)
     print(f_val_hist.shape)
     print(step_size.shape)
+    data =np.hstac((x, x_h, f_val_hist, step_size))
+    df = pd.DataFrame(data)
 
 
 def save_plot(name_fig, x, problem, H, q):

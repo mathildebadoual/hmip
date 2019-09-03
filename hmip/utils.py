@@ -12,7 +12,7 @@ def smoothness_coefficient(H):
 
 def projection(z, n, lb, ub):
     z[:n] = np.maximum(z[:n], lb)
-    z[:n] = np.maximum(z[:n], ub)
+    z[:n] = np.minimum(z[:n], ub)
     if len(z) > n:
         z[n:] = np.minimum(z[n:], np.zeros(len(z) - n))
     return z

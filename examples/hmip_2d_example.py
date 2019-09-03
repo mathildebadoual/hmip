@@ -15,11 +15,11 @@ binary_indicator = np.array([0, 0])
 ub = np.array([1, 1])
 lb = np.array([0, 0])
 
-A_eq = np.array([[-3, 2]])
-b_eq = np.array([0.5])
+A_eq = np.array([[3, -2]])
+b_eq = np.array([-0.5])
 
-A_ineq = np.array([[-3, 2]])
-b_ineq = np.array([0.5])
+A_ineq = np.array([[3, -2]])
+b_ineq = np.array([-0.5])
 
 penalty_eq = 10
 penalty_ineq = 10
@@ -43,10 +43,10 @@ problem = solver.setup_optimization_problem(
     lb,
     ub,
     binary_indicator,
-    A_eq=A_eq,
-    b_eq=b_eq,
-    A_ineq=A_ineq,
-    b_ineq=b_ineq,
+    A_eq=None,
+    b_eq=None,
+    A_ineq=None,
+    b_ineq=None,
     smoothness_coef=None,
     penalty_eq=penalty_eq,
     penalty_ineq=penalty_ineq)
@@ -86,10 +86,10 @@ def plot_2d(H, q, x, lb, ub, A_eq=None, b_eq=None, A_ineq=None, b_ineq=None):
     plt.ylim((lb[1] - 0.1, ub[1] + 0.1))
     plt.show()
 
-plot_2d(H, q, x, lb, ub, A_eq=A_eq, b_eq=b_eq, A_ineq=None, b_ineq=None)
+# plot_2d(H, q, x, lb, ub, A_eq=A_eq, b_eq=b_eq, A_ineq=None, b_ineq=None)
 
 
-binary_indicator = np.array([0, 1])
+binary_indicator = np.array([1, 1])
 
 problem = solver.setup_optimization_problem(
     objective_function,
@@ -97,8 +97,8 @@ problem = solver.setup_optimization_problem(
     lb,
     ub,
     binary_indicator,
-    A_eq=A_eq,
-    b_eq=b_eq,
+    A_eq=A_ineq,
+    b_eq=A_ineq,
     A_ineq=A_ineq,
     b_ineq=b_ineq,
     smoothness_coef=smoothness_coefficient,
