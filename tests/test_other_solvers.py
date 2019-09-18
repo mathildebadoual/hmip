@@ -1,5 +1,9 @@
 import unittest
 import numpy as np
+
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
 import hmip.other_solvers as other_solvers
 from hmip.hopfield import HopfieldSolver
 import hmip.utils as utils
@@ -35,6 +39,8 @@ class TestCvxpy(unittest.TestCase):
             self.binary_indicator,
             smoothness_coef=self.smoothness_coefficient)
         x_hopfield, _, _, _, _ = solver.solve(problem)
+        print(x_cvxpy)
+        print(x_hopfield[:, -1])
         self.assertTrue(np.allclose(x_cvxpy, x_hopfield[:, -1], rtol=0.1), 2)
 
 

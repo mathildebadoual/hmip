@@ -11,7 +11,8 @@ class HopfieldSolver():
                  absorption_criterion=None, max_iterations=500,
                  stopping_criterion_type='gradient', direction_type='binary',
                  step_type='classic',
-                 initial_ascent_type='ascent',
+                 # initial_ascent_type='ascent',
+                 initial_ascent_type='binary_neutral_ascent',
                  precision_stopping_criterion=10 ** -6,
                  beta=None):
 
@@ -68,6 +69,8 @@ class HopfieldSolver():
             'penalty_ineq': penalty_ineq
         })
 
+        print(self.beta)
+
         if type(self.beta) == int:
             self.beta = self.beta * np.ones(problem['dim_problem'])
         elif self.beta is None:
@@ -92,12 +95,12 @@ class HopfieldSolver():
         b_ineq = problem['b_ineq']
         b_eq = problem['b_eq']
 
-        print('Computing the dual variable ....')
         if (A_eq is not None and b_eq is not None) or \
                 (A_ineq is not None and b_ineq is not None):
+            print('Computing the dual variable ....')
             dual_variables_eq, dual_variables_ineq = self._get_dual_variables(
                 problem)
-        print('.... Dual variable computed.')
+            print('.... Dual variable computed.')
 
         if A_ineq is not None and b_ineq is not None and \
                 A_eq is not None and b_eq is not None:
@@ -227,15 +230,11 @@ class HopfieldSolver():
             rate = 1 / (problem['smoothness_coef'] + penalty_eq * max(np.linalg.eigvals(np.dot(A_eq.T, A_eq))) +
                             penalty_ineq * max(np.linalg.eigvals(np.dot(A_ineq.T, A_ineq))))
 
-            print('rate: %s' % rate)
-
             def gradient_augmented_lagrangian(variables, dual_variables_eq , dual_variables_ineq):
                 gradient_x_ineq = np.dot(A_ineq.T, dual_variables_ineq) + penalty_ineq * np.dot(A_ineq.T, inequality_constraint(variables))
                 gradient_x_eq = np.dot(A_eq.T, dual_variables_eq) + penalty_eq * np.dot(A_eq.T, equality_constraint(variables))
                 gradient_x = problem['gradient'](variables[:n]) + gradient_x_ineq + gradient_x_eq
                 gradient_s = - penalty_ineq * inequality_constraint(variables) - dual_variables_ineq
-                print(gradient_x.shape)
-                print(gradient_s.shape)
                 return np.concatenate((gradient_x, gradient_s))
 
             dual_variables_eq = np.ones(n_eq)

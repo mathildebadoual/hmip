@@ -1,6 +1,10 @@
 import unittest
 import numpy as np
 import cvxpy as cvx
+
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
 from hmip.hopfield import HopfieldSolver
 import hmip.utils as utils
 

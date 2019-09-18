@@ -77,6 +77,8 @@ def proxy_distance_vector_sin(x, beta):
         return x
     if np.less_equal((1 - x), 0).any():
         x = x - 0.00001 * np.ones(len(x))
+    x = np.maximum(np.zeros(len(x)), x)
+
     sin = 2 * np.multiply(np.multiply(beta, np.sqrt(x)), np.sqrt(1 - x))
     return sin
 
