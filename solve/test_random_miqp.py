@@ -5,7 +5,6 @@ import pandas as pd
 import time
 import math
 import gurobipy
-
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -57,22 +56,11 @@ TESTS = {
             'precision_stopping_criterion': 10**(-6),
             'beta': 100,
             },
-        5: {
-            'activation_type': 'sin',
-            'absorption_criterion': None,
-            'max_iterations': 500,
-            'stopping_criterion_type': 'gradient',
-            'direction_type': 'binary',
-            'step_type': 'classic',
-            'initial_ascent_type': 'binary_neutral_ascent',
-            'precision_stopping_criterion': 10**(-6),
-            'beta': 100,
-            },
         }
 
 
 def test_without_constraints():
-    num_tests = 1
+    num_tests = 100
     index = 0
     num_vars = [2, 4, 10, 100, 500, 1000, 5000, 10000]
     for test_info in TESTS.values():
@@ -95,32 +83,43 @@ def test_without_constraints():
                 dual_ineq = None
 
                 # solve with cplex
-                if num_vars >= 100:
-                    while (dual_eq is None or dual_ineq is None):
-                        print('TRY')
-                        # chose a random problem
-                        problem, H, q = generate_problem(solver,
-                                                         constraints=False,
-                                                         num_variables=num_var)
+                problem, H, q = generate_problem(solver,
+                                                 constraints=False,
+                                                 num_variables=num_var)
 
-                        t = time.perf_counter()
-                        x_cplex, f_cplex, dual_eq, dual_ineq = hmip.other_solvers.cvxpy_solver(
-                            H,
-                            q,
-                            problem['lb'],
-                            problem['ub'],
-                            problem['binary_indicator'],
-                            problem['A_eq'],
-                            problem['b_eq'],
-                            problem['A_ineq'],
-                            problem['b_ineq'],
-                            solver='GUROBI',
-                            verbose=False)
-                        t_cplex = time.perf_counter() - t
-                        dual_eq = 1
-                        dual_ineq = 1
+                if num_var <= 100:
+                    t = time.perf_counter()
+                    x_cplex, f_cplex, dual_eq, dual_ineq = hmip.other_solvers.cvxpy_solver(
+                        H,
+                        q,
+                        problem['lb'],
+                        problem['ub'],
+                        problem['binary_indicator'],
+                        problem['A_eq'],
+                        problem['b_eq'],
+                        problem['A_ineq'],
+                        problem['b_ineq'],
+                        solver='CPLEX',
+                        verbose=False)
+                    t_cplex = time.perf_counter() - t
+                else:
+                    f_cplex = None
+                    t_cplex = None
 
-                print('Found a feasible problem')
+                t = time.perf_counter()
+                x_cplex_relax, f_cplex_relax, _, _ = hmip.other_solvers.cvxpy_solver(
+                    H,
+                    q,
+                    problem['lb'],
+                    problem['ub'],
+                    np.zeros(len(problem['binary_indicator'])),
+                    problem['A_eq'],
+                    problem['b_eq'],
+                    problem['A_ineq'],
+                    problem['b_ineq'],
+                    solver='CPLEX',
+                    verbose=False)
+                t_cplex_relax = time.perf_counter() - t
 
                 # solve with Hmip
                 t = time.perf_counter()
@@ -129,13 +128,16 @@ def test_without_constraints():
                 t_hmip = time.perf_counter() - t
 
                 # save stats
+                print('--- save stats ---')
                 save_stats(solver, problem, x, x_h, f_val_hist, step_size,
-                           t_hmip, other_dict, index, t_cplex, f_cplex, 'stats_without_constraints')
+                           t_hmip, other_dict, index, t_cplex, f_cplex,
+                           t_cplex_relax, f_cplex_relax,
+                           'stats_without_constraints')
                 index += 1
 
 
 def test_with_constraints():
-    num_tests = 1
+    num_tests = 100
     index = 0
     num_vars = [2, 4, 10, 100]
     for test_info in TESTS.values():
@@ -161,7 +163,8 @@ def test_with_constraints():
                 while (dual_eq is None or dual_ineq is None):
                     print('TRY')
                     # chose a random problem
-                    problem, H, q = generate_problem(solver, constraints=True,
+                    problem, H, q = generate_problem(solver,
+                                                     constraints=True,
                                                      num_variables=num_var)
 
                     t = time.perf_counter()
@@ -175,13 +178,28 @@ def test_with_constraints():
                         problem['b_eq'],
                         problem['A_ineq'],
                         problem['b_ineq'],
-                        solver='GUROBI',
+                        solver='CPLEX',
                         verbose=False)
                     t_cplex = time.perf_counter() - t
                     dual_eq = 1
                     dual_ineq = 1
 
                 print('Found a feasible problem')
+
+                t = time.perf_counter()
+                x_cplex_relax, f_cplex_relax, _, _ = hmip.other_solvers.cvxpy_solver(
+                    H,
+                    q,
+                    problem['lb'],
+                    problem['ub'],
+                    np.zeros(len(problem['binary_indicator'])),
+                    problem['A_eq'],
+                    problem['b_eq'],
+                    problem['A_ineq'],
+                    problem['b_ineq'],
+                    solver='CPLEX',
+                    verbose=False)
+                t_cplex_relax = time.perf_counter() - t
 
                 problem['dual_eq'] = dual_eq
                 problem['dual_ineq'] = dual_ineq
@@ -194,12 +212,15 @@ def test_with_constraints():
 
                 # save stats
                 save_stats(solver, problem, x, x_h, f_val_hist, step_size,
-                           t_hmip, other_dict, index, t_cplex, f_cplex, 'stats_with_constraints')
+                           t_hmip, other_dict, index, t_cplex, f_cplex,
+                           t_cplex_relax, f_cplex_relax,
+                           'stats_with_constraints')
                 index += 1
 
 
 def save_stats(solver, problem, x, x_h, f_val_hist, step_size, t_hmip,
-               other_dict, index, t_cplex, f_cplex, csv_name):
+               other_dict, index, t_cplex, f_cplex, t_cplex_relax,
+               f_cplex_relax, csv_name):
     stop_index = x.shape[1]
     for i in range(x.shape[1]):
         if np.isnan(x[:, i]).any():
@@ -227,15 +248,21 @@ def save_stats(solver, problem, x, x_h, f_val_hist, step_size, t_hmip,
     d['theta'] = solver.theta
 
     d['f_value'] = f_val_hist[x_refactor.shape[1] - 1]
-    #d['norm_eq'] = np.linalg.norm(np.dot(A_eq, x_refactor[:, -1]) - b_eq, ord=2)
-    #d['norm_ineq'] = np.max((0, np.linalg.norm(
-    #    np.dot(A_ineq, x_refactor[:, -1]) - b_ineq,
-    #                                ord=2)))
+    if csv_name == 'stats_with_constraints':
+        d['norm_eq'] = np.linalg.norm(np.dot(A_eq, x_refactor[:, -1]) - b_eq,
+                                      ord=2)
+        d['norm_ineq'] = np.max(
+            (0,
+             np.linalg.norm(np.dot(A_ineq, x_refactor[:, -1]) - b_ineq,
+                            ord=2)))
     d['binary'] = np.sum(
         np.multiply(x_refactor[:, -1], (1 - x_refactor[:, -1])))
     d['t_hmip'] = t_hmip
     d['t_cplex'] = t_cplex
     d['f_cplex'] = f_cplex
+
+    d['t_cplex_relax'] = t_cplex_relax
+    d['f_cplex_relax'] = f_cplex_relax
 
     df = pd.DataFrame(data=d, index=[index])
 
