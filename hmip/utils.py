@@ -27,7 +27,6 @@ def compute_approximate_smoothness_coef(gradient, lb, ub):
         point_2 = np.multiply(np.random.rand(n), ub - lb) + lb
         distance = np.linalg.norm(point_1 - point_2)
         smoothness_val = max(smoothness_val, np.linalg.norm(gradient(point_1)-gradient(point_2))/distance)
-    print('approximate', smoothness_val)
     return smoothness_val
 
 
