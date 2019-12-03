@@ -102,7 +102,7 @@ def test_without_constraints():
                         problem['b_eq'],
                         problem['A_ineq'],
                         problem['b_ineq'],
-                        solver='CPLEX',
+                        solver='GUROBI',
                         verbose=True)
                     t_cplex = time.perf_counter() - t
                 else:
@@ -121,7 +121,7 @@ def test_without_constraints():
                         problem['b_eq'],
                         problem['A_ineq'],
                         problem['b_ineq'],
-                        solver='CPLEX',
+                        solver='GUROBI',
                         verbose=True)
                     t_cplex_relax = time.perf_counter() - t
 
