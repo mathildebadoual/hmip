@@ -92,7 +92,7 @@ def test_without_constraints():
 
                 if num_var <= 100000:
                     t = time.perf_counter()
-                    x_cplex, f_cplex, dual_eq, dual_ineq = hmip.other_solvers.cvxpy_solver(
+                    x_cplex, f_cplex = hmip.other_solvers.cvxpy_solver(
                         H,
                         q,
                         problem['lb'],
@@ -103,7 +103,8 @@ def test_without_constraints():
                         problem['A_ineq'],
                         problem['b_ineq'],
                         solver='GUROBI',
-                        verbose=True)
+                        verbose=True,
+                        dual=False)
                     t_cplex = time.perf_counter() - t
                 else:
                     f_cplex = None
@@ -111,7 +112,7 @@ def test_without_constraints():
 
                 if num_var <= 100000:
                     t = time.perf_counter()
-                    x_cplex_relax, f_cplex_relax, _, _ = hmip.other_solvers.cvxpy_solver(
+                    x_cplex_relax, f_cplex_relax = hmip.other_solvers.cvxpy_solver(
                         H,
                         q,
                         problem['lb'],
@@ -122,7 +123,8 @@ def test_without_constraints():
                         problem['A_ineq'],
                         problem['b_ineq'],
                         solver='GUROBI',
-                        verbose=True)
+                        verbose=True,
+                        dual=False)
                     t_cplex_relax = time.perf_counter() - t
 
                 # solve with Hmip
@@ -183,7 +185,8 @@ def test_with_constraints():
                         problem['A_ineq'],
                         problem['b_ineq'],
                         solver='CPLEX',
-                        verbose=True)
+                        verbose=True,
+                        dual=True)
                     t_cplex = time.perf_counter() - t
                     dual_eq = 1
                     dual_ineq = 1
@@ -191,7 +194,7 @@ def test_with_constraints():
                 print('Found a feasible problem')
 
                 t = time.perf_counter()
-                x_cplex_relax, f_cplex_relax, _, _ = hmip.other_solvers.cvxpy_solver(
+                x_cplex_relax, f_cplex_relax = hmip.other_solvers.cvxpy_solver(
                     H,
                     q,
                     problem['lb'],
@@ -202,7 +205,8 @@ def test_with_constraints():
                     problem['A_ineq'],
                     problem['b_ineq'],
                     solver='CPLEX',
-                    verbose=True)
+                    verbose=True,
+                    dual=False)
                 t_cplex_relax = time.perf_counter() - t
 
                 problem['dual_eq'] = dual_eq

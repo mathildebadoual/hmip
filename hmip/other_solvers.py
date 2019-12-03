@@ -1,5 +1,4 @@
 import cvxpy as cvx
-import cplex
 
 
 def cvxpy_solver(H,
@@ -12,7 +11,8 @@ def cvxpy_solver(H,
                  A_ineq,
                  b_ineq,
                  solver=None,
-                 verbose=False):
+                 verbose=False,
+                 dual=False):
     """
     Solves the same problem as hopfiel with cvxpy
     :param H:
@@ -33,7 +33,8 @@ def cvxpy_solver(H,
 
     x = cvx.Variable(n, integer=index_binary)
     constraints = [lb <= x, x <= ub]
-    # constraints += [A_eq * x == b_eq, A_ineq * x <= b_ineq]
+    if A_eq is not None and A_ineq is not None:
+        constraints += [A_eq * x == b_eq, A_ineq * x <= b_ineq]
     objective = 1 / 2 * cvx.quad_form(x, H) + q.T * x
     objective = cvx.Minimize(objective)
     problem = cvx.Problem(objective, constraints)
@@ -43,10 +44,10 @@ def cvxpy_solver(H,
     else:
         problem.solve(verbose=verbose, solver=solver)
 
-    # return x.value, objective.value, constraints[2].dual_value, constraints[
-    #    3].dual_value
-    return x.value, objective.value, None, None
-
+    if dual and A_eq is not None and A_ineq is not None:
+        return x.value, objective.value, constraints[2].dual_value, constraints[3].dual_value
+    else:
+        return x.value, objective.value
 
 
 def cplex_solver():
