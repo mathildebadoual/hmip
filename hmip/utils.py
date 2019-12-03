@@ -20,7 +20,7 @@ def projection(z, n, lb, ub):
 
 def compute_approximate_smoothness_coef(gradient, lb, ub):
     n = len(lb)
-    n_rand = 100 * n
+    n_rand =  n
     smoothness_val_list = []
     for n_rand_trials in range(n_rand):
         point_1 = np.multiply(np.random.rand(n), ub - lb) + lb
