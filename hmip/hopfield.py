@@ -62,6 +62,7 @@ class HopfieldSolver():
                          binary_indicator=binary_indicator)
 
         if not smoothness_coef:
+            print('compute smoothness coef')
             smoothness_coef = utils.compute_approximate_smoothness_coef(
                 gradient, lb, ub)
 

@@ -60,7 +60,7 @@ TESTS = {
 
 
 def test_without_constraints():
-    num_tests = 100
+    num_tests = 1
     index = 0
     num_vars = [2, 4, 10, 100, 500, 1000, 5000, 10000]
     for test_info in TESTS.values():
@@ -87,7 +87,7 @@ def test_without_constraints():
                                                  constraints=False,
                                                  num_variables=num_var)
 
-                if num_var <= 100:
+                if num_var <= 500:
                     t = time.perf_counter()
                     x_cplex, f_cplex, dual_eq, dual_ineq = hmip.other_solvers.cvxpy_solver(
                         H,
@@ -100,26 +100,27 @@ def test_without_constraints():
                         problem['A_ineq'],
                         problem['b_ineq'],
                         solver='CPLEX',
-                        verbose=False)
+                        verbose=True)
                     t_cplex = time.perf_counter() - t
                 else:
                     f_cplex = None
                     t_cplex = None
 
-                t = time.perf_counter()
-                x_cplex_relax, f_cplex_relax, _, _ = hmip.other_solvers.cvxpy_solver(
-                    H,
-                    q,
-                    problem['lb'],
-                    problem['ub'],
-                    np.zeros(len(problem['binary_indicator'])),
-                    problem['A_eq'],
-                    problem['b_eq'],
-                    problem['A_ineq'],
-                    problem['b_ineq'],
-                    solver='CPLEX',
-                    verbose=False)
-                t_cplex_relax = time.perf_counter() - t
+                if num_var <= 500:
+                    t = time.perf_counter()
+                    x_cplex_relax, f_cplex_relax, _, _ = hmip.other_solvers.cvxpy_solver(
+                        H,
+                        q,
+                        problem['lb'],
+                        problem['ub'],
+                        np.zeros(len(problem['binary_indicator'])),
+                        problem['A_eq'],
+                        problem['b_eq'],
+                        problem['A_ineq'],
+                        problem['b_ineq'],
+                        solver='CPLEX',
+                        verbose=True)
+                    t_cplex_relax = time.perf_counter() - t
 
                 # solve with Hmip
                 t = time.perf_counter()
@@ -137,7 +138,7 @@ def test_without_constraints():
 
 
 def test_with_constraints():
-    num_tests = 100
+    num_tests = 1
     index = 0
     num_vars = [2, 4, 10, 100]
     for test_info in TESTS.values():
@@ -179,7 +180,7 @@ def test_with_constraints():
                         problem['A_ineq'],
                         problem['b_ineq'],
                         solver='CPLEX',
-                        verbose=False)
+                        verbose=True)
                     t_cplex = time.perf_counter() - t
                     dual_eq = 1
                     dual_ineq = 1
@@ -198,7 +199,7 @@ def test_with_constraints():
                     problem['A_ineq'],
                     problem['b_ineq'],
                     solver='CPLEX',
-                    verbose=False)
+                    verbose=True)
                 t_cplex_relax = time.perf_counter() - t
 
                 problem['dual_eq'] = dual_eq

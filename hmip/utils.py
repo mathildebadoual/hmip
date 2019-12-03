@@ -20,14 +20,14 @@ def projection(z, n, lb, ub):
 
 def compute_approximate_smoothness_coef(gradient, lb, ub):
     n = len(lb)
-    n_rand = 1000 * n
-    smoothness_val = 0.0
+    n_rand = 100 * n
+    smoothness_val_list = []
     for n_rand_trials in range(n_rand):
         point_1 = np.multiply(np.random.rand(n), ub - lb) + lb
         point_2 = np.multiply(np.random.rand(n), ub - lb) + lb
         distance = np.linalg.norm(point_1 - point_2)
-        smoothness_val = max(smoothness_val, np.linalg.norm(gradient(point_1)-gradient(point_2))/distance)
-    return smoothness_val
+        smoothness_val_list.append(np.linalg.norm(gradient(point_1) - gradient(point_2)) / distance)
+    return np.max(smoothness_val_list)
 
 
 def is_in_box(x, ub, lb):
