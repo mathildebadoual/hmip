@@ -90,7 +90,7 @@ def test_without_constraints():
                                                  constraints=False,
                                                  num_variables=num_var)
 
-                if num_var <= 500:
+                if num_var <= 100000:
                     t = time.perf_counter()
                     x_cplex, f_cplex, dual_eq, dual_ineq = hmip.other_solvers.cvxpy_solver(
                         H,
@@ -109,7 +109,7 @@ def test_without_constraints():
                     f_cplex = None
                     t_cplex = None
 
-                if num_var <= 500:
+                if num_var <= 100000:
                     t = time.perf_counter()
                     x_cplex_relax, f_cplex_relax, _, _ = hmip.other_solvers.cvxpy_solver(
                         H,
