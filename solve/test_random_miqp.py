@@ -66,6 +66,9 @@ def test_without_constraints():
     for test_info in TESTS.values():
         for num_var in num_vars:
             for i in range(num_tests):
+                print('------------------ Problem %s -----------------' % i)
+                print('------------------ Binary Variables: %s -----------------' % num_var)
+
                 solver = hmip.HopfieldSolver(
                     activation_type=test_info['activation_type'],
                     absorption_criterion=test_info['absorption_criterion'],
