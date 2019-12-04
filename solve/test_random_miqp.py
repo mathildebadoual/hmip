@@ -4,12 +4,14 @@ import scipy.sparse
 import pandas as pd
 import time
 import math
-import gurobipy
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 import hmip
+
+
+SOLVER = 'CPLEX'
 
 TESTS = {
         1: {
@@ -69,6 +71,7 @@ def test_without_constraints():
                 print('------------------ Problem %s -----------------' % i)
                 print('------------------ Binary Variables: %s -----------------' % num_var)
 
+                print('setup solver')
                 solver = hmip.HopfieldSolver(
                     activation_type=test_info['activation_type'],
                     absorption_criterion=test_info['absorption_criterion'],
@@ -82,10 +85,8 @@ def test_without_constraints():
                     beta=test_info['beta'],
                 )
 
-                dual_eq = None
-                dual_ineq = None
-
-                # solve with cplex
+                # generate problem
+                print('generate a random problem')
                 problem, H, q = generate_problem(solver,
                                                  constraints=False,
                                                  num_variables=num_var)
@@ -102,7 +103,7 @@ def test_without_constraints():
                         problem['b_eq'],
                         problem['A_ineq'],
                         problem['b_ineq'],
-                        solver='GUROBI',
+                        solver=SOLVER,
                         verbose=True,
                         dual=False)
                     t_cplex = time.perf_counter() - t
@@ -122,7 +123,7 @@ def test_without_constraints():
                         problem['b_eq'],
                         problem['A_ineq'],
                         problem['b_ineq'],
-                        solver='GUROBI',
+                        solver=SOLVER,
                         verbose=True,
                         dual=False)
                     t_cplex_relax = time.perf_counter() - t
@@ -184,7 +185,7 @@ def test_with_constraints():
                         problem['b_eq'],
                         problem['A_ineq'],
                         problem['b_ineq'],
-                        solver='CPLEX',
+                        solver=SOLVER,
                         verbose=True,
                         dual=True)
                     t_cplex = time.perf_counter() - t
@@ -204,7 +205,7 @@ def test_with_constraints():
                     problem['b_eq'],
                     problem['A_ineq'],
                     problem['b_ineq'],
-                    solver='CPLEX',
+                    solver=SOLVER,
                     verbose=True,
                     dual=False)
                 t_cplex_relax = time.perf_counter() - t

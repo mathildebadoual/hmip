@@ -1,3 +1,4 @@
+pandas
 codecov
 nose
 coverage
