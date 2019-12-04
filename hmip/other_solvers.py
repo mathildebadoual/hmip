@@ -1,4 +1,5 @@
 import cvxpy as cvx
+import time
 
 
 def cvxpy_solver(H,
@@ -39,15 +40,17 @@ def cvxpy_solver(H,
     objective = cvx.Minimize(objective)
     problem = cvx.Problem(objective, constraints)
 
+    t = time.perf_counter()
     if solver is None:
         problem.solve(verbose=verbose)
     else:
         problem.solve(verbose=verbose, solver=solver)
+    t_total = time.perf_counter() - t
 
     if dual and A_eq is not None and A_ineq is not None:
-        return x.value, objective.value, constraints[2].dual_value, constraints[3].dual_value
+        return x.value, objective.value, constraints[2].dual_value, constraints[3].dual_value, t_total
     else:
-        return x.value, objective.value
+        return x.value, objective.value, t_total
 
 
 def cplex_solver():
