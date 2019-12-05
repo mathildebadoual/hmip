@@ -63,11 +63,12 @@ def test_without_constraints():
     num_tests = 1
     index = 0
     num_vars = [2, 4, 10, 100, 500, 1000, 5000, 10000]
-    for test_info in TESTS.values():
+    for k, test_info in TESTS.items():
         for num_var in num_vars:
             for i in range(num_tests):
-                print('------------------ Problem %s -----------------' % i)
+                print('------------------ Setting: %s -----------------' % k)
                 print('------------------ Binary Variables: %s -----------------' % num_var)
+                print('------------------ Problem %s -----------------' % i)
 
                 print('setup solver')
                 solver = hmip.HopfieldSolver(
@@ -141,9 +142,13 @@ def test_with_constraints():
     num_tests = 1
     index = 0
     num_vars = [2, 4, 10, 100]
-    for test_info in TESTS.values():
+    for k, test_info in TESTS.items():
         for num_var in num_vars:
             for i in range(num_tests):
+                print('------------------ Setting: %s -----------------' % k)
+                print('------------------ Binary Variables: %s -----------------' % num_var)
+                print('------------------ Problem %s -----------------' % i)
+
                 solver = hmip.HopfieldSolver(
                     activation_type=test_info['activation_type'],
                     absorption_criterion=test_info['absorption_criterion'],
