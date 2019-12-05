@@ -181,8 +181,6 @@ def test_with_constraints():
                         solver=SOLVER,
                         verbose=True,
                         dual=True)
-                    dual_eq = 1
-                    dual_ineq = 1
 
                 print('Found a feasible problem')
 
@@ -359,6 +357,6 @@ def generate_problem(solver, constraints=False, num_variables=2, beta=0.7, spars
 
 if __name__ == '__main__':
     print('--- test without constraints ---')
-    test_without_constraints()
+    #test_without_constraints()
     print('--- test with constraints ---')
     test_with_constraints()
