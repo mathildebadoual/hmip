@@ -7,6 +7,8 @@ Solver for large scale nonlinear mixed integer problems.
 
 Developed at [eCAL](https://ecal.berkeley.edu/), UC Berkeley.
 
+Work funded by [TOTAL](https://www.total.com/en).  
+
 # Installation
 
 ```bash
