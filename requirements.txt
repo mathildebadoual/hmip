@@ -6,6 +6,5 @@ cvxpy
 scipy
 jupyter
 matplotlib
-cplex
 numpy >= 1.14
 matplotlib
