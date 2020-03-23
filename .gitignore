@@ -110,3 +110,6 @@ venv.bak/
 *~
 *.egg-info
 __pychache__
+*.csv
+*.png
+hmip_env/

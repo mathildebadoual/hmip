@@ -11,9 +11,9 @@ import hmip.utils as utils
 
 class TestCvxpy(unittest.TestCase):
     def setUp(self):
-        self.H = np.array([[2, 0], [0, 1]])
-        self.q = np.array([-2.7, -1.8])
-        self.binary_indicator = np.array([0, 1])
+        self.H = np.array([[1, 1], [1, 10]])
+        self.q = np.array([1, 6])
+        self.binary_indicator = np.array([1, 0])
         self.ub = np.array([1, 1])
         self.lb = np.array([0, 0])
         self.k_max = 200
@@ -23,12 +23,12 @@ class TestCvxpy(unittest.TestCase):
         self.smoothness_coefficient = utils.smoothness_coefficient(self.H)
 
     def test_cxvpy_solver_default(self):
-        x_solution = other_solvers.cvxpy_solver(self.H, self.q, self.lb,
+        x_cvxpy, _, _ = other_solvers.cvxpy_solver(self.H, self.q, self.lb,
                                                 self.ub, self.binary_indicator)
-        self.assertTrue(np.allclose(x_solution, np.array([1, 1]), rtol=0.1), 2)
+        self.assertTrue(np.allclose(x_cvxpy, np.array([0, 0]), rtol=0.1), 2)
 
     def test_cvxpy_solver_default_comparison(self):
-        x_cvxpy = other_solvers.cvxpy_solver(self.H, self.q, self.lb, self.ub,
+        x_cvxpy, _, _ = other_solvers.cvxpy_solver(self.H, self.q, self.lb, self.ub,
                                              self.binary_indicator)
         solver = HopfieldSolver(max_iterations=self.k_max)
         problem = solver.setup_optimization_problem(
@@ -39,8 +39,6 @@ class TestCvxpy(unittest.TestCase):
             self.binary_indicator,
             smoothness_coef=self.smoothness_coefficient)
         x_hopfield, _, _, _, _ = solver.solve(problem)
-        print(x_cvxpy)
-        print(x_hopfield[:, -1])
         self.assertTrue(np.allclose(x_cvxpy, x_hopfield[:, -1], rtol=0.1), 2)
 
 

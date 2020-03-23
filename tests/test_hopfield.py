@@ -41,7 +41,7 @@ class TestHopfield(unittest.TestCase):
         x, x_h, f_val_hist, step_size, _ = solver.solve(
             problem)
         self.assertEqual(x.shape[0], self.q.shape[0])
-        self.assertEqual(x.shape[1], self.k_max)
+        self.assertEqual(x.shape[1], 2)
 
     def test_hopfield_step_type_classic(self):
         solver = HopfieldSolver(max_iterations=self.k_max, step_type='classic')
@@ -55,7 +55,7 @@ class TestHopfield(unittest.TestCase):
         x, x_h, f_val_hist, step_size, _ = solver.solve(
             problem)
         self.assertEqual(x.shape[0], self.q.shape[0])
-        self.assertEqual(x.shape[1], self.k_max)
+        self.assertEqual(x.shape[1], 2)
 
     def test_hopfield_step_type_armijo(self):
         solver = HopfieldSolver(max_iterations=self.k_max, step_type='armijo')
@@ -69,7 +69,7 @@ class TestHopfield(unittest.TestCase):
         x, x_h, f_val_hist, step_size, _ = solver.solve(
             problem)
         self.assertEqual(x.shape[0], self.q.shape[0])
-        self.assertEqual(x.shape[1], self.k_max)
+        self.assertEqual(x.shape[1], 1)
 
     def test_hopfield_with_absorption(self):
         solver = HopfieldSolver(max_iterations=self.k_max,
@@ -85,7 +85,7 @@ class TestHopfield(unittest.TestCase):
         x, x_h, f_val_hist, step_siz, _ = solver.solve(
             problem)
         self.assertEqual(x.shape[0], self.q.shape[0])
-        self.assertEqual(x.shape[1], self.k_max)
+        self.assertEqual(x.shape[1], 1)
 
     def test_get_dual_variables_cvxpy(self):
         # test of the equality

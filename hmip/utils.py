@@ -763,3 +763,18 @@ def read_bounds(f, var_names, var_typesinit, fixed):
 
     f.seek(pos)
     return bounds, var_types
+
+
+def remove_nan_results(x):
+    """
+    remove nan values at the end of x
+    :param x: (np.array) variable dimension n
+    :return: (np.array) dimension <= n
+    """
+    stop_index = len(x)
+    for i in range(x.shape[1]):
+        if np.isnan(x[:, i]).any():
+            stop_index = i
+            break
+    x_refactor = x[:, :stop_index]
+    return x_refactor

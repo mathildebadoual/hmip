@@ -7,10 +7,10 @@ def cvxpy_solver(H,
                  lb,
                  ub,
                  binary_indicator,
-                 A_eq,
-                 b_eq,
-                 A_ineq,
-                 b_ineq,
+                 A_eq=None,
+                 b_eq=None,
+                 A_ineq=None,
+                 b_ineq=None,
                  solver=None,
                  verbose=False,
                  dual=False):
@@ -42,27 +42,15 @@ def cvxpy_solver(H,
 
     t = time.perf_counter()
     if solver is None:
-        problem.solve(verbose=verbose)
+        sol = problem.solve(verbose=verbose)
     else:
-        problem.solve(verbose=verbose, solver=solver)
+        sol = problem.solve(verbose=verbose, solver=solver)
     t_total = time.perf_counter() - t
 
-    if dual and A_eq is not None and A_ineq is not None:
+    print('PROBLEM STATUS: %s' % problem.status)
+
+    if dual:
         return x.value, objective.value, constraints[2].dual_value, constraints[3].dual_value, t_total
     else:
         return x.value, objective.value, t_total
 
-
-def cplex_solver():
-    """
-    Solves the same problem as hopfield with CPLEX solver
-    (requires CPLEX)
-    :param H:
-    :param q:
-    :param lb:
-    :param ub:
-    :param binary_indicator:
-    :param solver: cvxpy solver
-    :return: result of the optimization
-    """
-    pass

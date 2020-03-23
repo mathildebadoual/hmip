@@ -167,7 +167,7 @@ def test_with_constraints():
 
                 # solve with cplex
                 while (dual_eq is None or dual_ineq is None):
-                    print('TRY')
+                    print('TRY AGAIN')
                     # chose a random problem
                     problem, H, q = generate_problem(solver,
                                                      constraints=True,
@@ -183,7 +183,7 @@ def test_with_constraints():
                         problem['b_eq'],
                         problem['A_ineq'],
                         problem['b_ineq'],
-                        solver=SOLVER,
+                        solver='GUROBI',
                         verbose=True,
                         dual=True)
 

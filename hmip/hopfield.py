@@ -216,6 +216,8 @@ class HopfieldSolver():
 
             k += 1
 
+        x = utils.remove_nan_results(x)
+
         print('Candidate solution found with %s number of iterations.' % k)
         if A_ineq is not None and b_ineq is not None:
             return x, x_h, f_val_hist, step_size, dict(

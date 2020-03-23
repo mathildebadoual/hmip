@@ -165,9 +165,6 @@ class TestCheckType(unittest.TestCase):
 
 
 class TestCheck(unittest.TestCase):
-    def setUp(self):
-        pass
-
     def test_check_ascent_stop(self):
         pass
 
@@ -175,6 +172,13 @@ class TestCheck(unittest.TestCase):
         non_symmetric_matrix = np.array([[1, 0], [0, 1]])
         self.assertTrue(np.array_equal(utils.make_symmetric(non_symmetric_matrix),
                                        0.5 * (non_symmetric_matrix + non_symmetric_matrix.T)))
+
+
+class TestUtils(unittest.TestCase):
+    def test_remove_nan_results(self):
+        x = np.array([[0, 0, 0, 1, None, None, None]], dtype=np.float64)
+        x_refactor = utils.remove_nan_results(x)
+        self.assertEqual(x_refactor.shape[1], 4)
 
 
 if __name__ == '__main__':
