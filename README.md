@@ -24,6 +24,10 @@ import hmip
 
 For examples of how to use the module, run the [jupyter notebook](https://github.com/mathildebadoual/hmip/blob/master/examples/hmip_2d_example.ipynb) and read the [Wiki](https://github.com/mathildebadoual/hmip/wiki).
 
+# Documentation
+
+The [Documentation](https://github.com/mathildebadoual/hmip/blob/master/docs/hmip_code_documentation.pdf) explains the math behind each function.
+
 # Contacts:
 
 Mathilde Badoual: mathilde.badoual@berkeley.edu
