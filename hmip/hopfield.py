@@ -54,7 +54,31 @@ class HopfieldSolver():
                                    penalty_eq=0,
                                    penalty_ineq=0,
                                    dual_eq=None,
-                                   dual_ineq=None):
+                                   dual_ineq=None,
+                                   verbose=False):
+
+        """
+
+        Setup the optimization problem
+
+        :param objective_function: (function) objective function
+        :param gradient: (function) gradient of the objective function
+        :param lb: (np.array) lower bound
+        :param ub: (np.array) upper bound
+        :param binary_indicator: (np.array) 1 if variable is binary, 0 otw
+        :param A_eq: (np.array) (default=None) matrix A in equality constraint Ax = b
+        :param b_eq: (np.array) (default=None) matrix b in equality constraint Ax = b
+        :param A_ineq: (np.array) (default=None) matrix A in inequality constraint Ax <= b
+        :param b_ineq: (np.array) (default=None) matrix b in inequality constraint Ax <= b
+        :param x_0: (np.array) (default=None) initial value for the solution
+        :param smoothness_coed: (float) smoothness coefficient
+        :param penalty_eq: (float) (default=None) penalty for the equality constraint
+        :param penalty_ineq: (float) (default=None) penalty for the inequality constraint
+        :param dual_eq: (np.array) dual variable for the equality constraint
+        :param dual_ineq: (np.array) dual variable for the inequality constraint
+        :param verbose: (boolean) if True print messages
+
+        """
         print('Set up optimization problem ....')
         utils.check_type(len(binary_indicator),
                          lb=lb,
@@ -124,7 +148,7 @@ class HopfieldSolver():
                 problem)
             print('.... Dual variable computed.')
         else:
-            print('Dual known')
+            print('Dual known or no constraints')
             dual_variables_eq, dual_variables_ineq = dual_eq, dual_ineq
 
         if A_ineq is not None and b_ineq is not None and \
@@ -299,7 +323,6 @@ class HopfieldSolver():
                         x - rate * gradient_augmented_lagrangian(
                             x, dual_variables_eq, dual_variables_ineq), n, lb,
                         ub)
-                print('precision: %s' % np.linalg.norm(next_x - x))
                 next_x = x
 
                 alpha = 0.9
@@ -315,10 +338,6 @@ class HopfieldSolver():
                     x)
                 next_dual_variables_ineq = dual_variables_ineq + d_k * inequality_constraint(
                     x)
-
-                print(
-                    'precision dual: %s' %
-                    np.linalg.norm(next_dual_variables_eq - dual_variables_eq))
 
             return dual_variables_eq, dual_variables_ineq
 
